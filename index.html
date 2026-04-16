@@ -840,16 +840,16 @@ function buildBoardSVG() {
         s.push('<circle id="p_'+p+'_'+peg+'" cx="'+f(h0.x+offX)+'" cy="'+f(h0.y+offY)+'" r="'+f(B.pegR)+'" fill="rgba(0,0,0,.45)" stroke="'+PC[p]+'" stroke-width="1.8" class="peg-el"/>');
       }
     }
-    /* Score label above front peg — 50% larger than before
-       lblSz: was pegR*1.15, now pegR*1.75 for visibility at table distance
-       Unity: TextMeshPro fontSize *= 1.5 */
+    /* Score label above front peg — another 50% larger (now 2.25× original)
+       lblSz: was pegR*1.75 max 18, now pegR*2.6 max 27
+       Unity: TextMeshPro fontSize *= 1.5 again */
     var h0s = B.holePos[p][0];
-    var lblSz = Math.max(10, Math.min(B.pegR*1.75, 18));
+    var lblSz = Math.max(14, Math.min(B.pegR*2.6, 27));
     var offXf = B.pegR*.4, offYf = -B.pegR*.15;
-    s.push('<text id="lbl_'+p+'" x="'+f(h0s.x+offXf)+'" y="'+f(h0s.y+offYf-B.pegR-3)+'"');
+    s.push('<text id="lbl_'+p+'" x="'+f(h0s.x+offXf)+'" y="'+f(h0s.y+offYf-B.pegR-5)+'"');
     s.push(' text-anchor="middle" font-size="'+f(lblSz)+'" font-weight="bold"');
     s.push(' font-family="Georgia,serif" fill="'+PC[p]+'"');
-    s.push(' stroke="rgba(0,0,0,.75)" stroke-width="2.5" paint-order="stroke"');
+    s.push(' stroke="rgba(0,0,0,.8)" stroke-width="3.5" paint-order="stroke"');
     s.push(' class="peg-lbl">0</text>');
   }
 
@@ -876,7 +876,7 @@ function updatePegs() {
         var lbl = document.getElementById('lbl_'+p);
         if (lbl) {
           lbl.setAttribute('x', f(hp.x+offX));
-          lbl.setAttribute('y', f(hp.y+offY-B.pegR-3));
+          lbl.setAttribute('y', f(hp.y+offY-B.pegR-5));
           lbl.textContent = G.scores[p];
         }
       }
