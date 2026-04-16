@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+
+<!--
+  ╔══════════════════════════════════════════════════════════════════════╗
+  ║  CRIBBAGE COMPANION  v3.0                                           ║
+  ║  CHANGES FROM v2:                                                   ║
+  ║  1. Win screen: name first, then "Wins the Game!"                  ║
+  ║  2. Player color picker (10 colors, modal overlay)                 ║
+  ║  3. Voice Scoring mode via Web Speech API                          ║
+  ║  4. "deals" label instead of "shuffles"                            ║
+  ║  5. Snake path border drawn per player column on board             ║
+  ║                                                                      ║
+  ║  UNITY / C# NOTES:                                                  ║
+  ║  - G{} → GameState.cs                                              ║
+  ║  - PC[] player colors → Color[] (runtime mutable)                  ║
+  ║  - Voice: Web Speech API → Unity Microphone + ML transcription     ║
+  ║  - Snake path border → LineRenderer with player color              ║
+  ╚══════════════════════════════════════════════════════════════════════╝
+-->
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cribbage Companion</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Crimson+Pro:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --felt:      #0d3320;
+  --felt-mid:  #0a2518;
+  --felt-dark: #061510;
+  --wood:      #2a1506;
+  --brass:     #c9952a;
+  --brass-dim: #7a5a18;
+  --ivory:     #f0ead6;
+  --ivory-dim: #9a9078;
+  --ivory-faint:#3a3428;
+  --radius:12px;
+  --t:.3s cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html{background:var(--felt-dark);overflow-y:auto;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;}
+body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Georgia,serif;user-select:none;-webkit-user-select:none;min-height:100vh;}
+@keyframes breathe{0%,100%{opacity:.4;}50%{opacity:1;}}
+@keyframes winFade{0%{background:rgba(0,0,0,0);}100%{background:rgba(3,10,6,.96);}}
+@keyframes winPop{from{opacity:0;transform:scale(.4);}to{opacity:1;transform:scale(1);}}
+@keyframes winIn{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
+@keyframes micPulse{0%,100%{box-shadow:0 0 0 0 rgba(74,219,122,.5);}70%{box-shadow:0 0 0 18px rgba(74,219,122,0);}}
+
+/* ── SPLASH ── */
+#splash-screen{height:100svh;width:100vw;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;background:radial-gradient(ellipse at 50% 40%,var(–felt-mid),var(–felt-dark) 70%);position:relative;overflow:hidden;padding:calc(env(safe-area-inset-top,0px) + 20px) 20px 20px;}
+#splash-screen::before{content:’’;position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(255,255,255,.015) 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(255,255,255,.015) 40px);}
+.splash-logo{text-align:center;}
+.splash-logo h1{font-family:‘Playfair Display’,serif;font-size:clamp(28px,8vw,44px);font-weight:900;color:var(–brass);letter-spacing:2px;text-shadow:0 0 40px rgba(201,149,42,.4),0 2px 4px rgba(0,0,0,.8);line-height:1.1;}
+.splash-logo .sub{font-size:13px;font-weight:300;letter-spacing:6px;color:var(–ivory-dim);text-transform:uppercase;margin-top:6px;}
+.splash-suits{font-size:22px;letter-spacing:14px;color:var(–brass-dim);margin-top:4px;}
+.splash-hint{font-size:13px;letter-spacing:3px;color:var(–ivory-faint);text-transform:uppercase;animation:breathe 2.5s ease-in-out infinite;}
+
+/* ── BOARD SCREEN ── */
+#board-screen{display:none;flex-direction:column;min-height:100svh;padding:calc(env(safe-area-inset-top,0px) + 8px) 0 0;background:radial-gradient(ellipse at 50% 30%,var(–felt-mid),var(–felt-dark) 80%);}
+.app-header{display:flex;align-items:center;justify-content:space-between;padding:0 16px 8px;border-bottom:1px solid rgba(201,149,42,.15);flex-shrink:0;}
+.app-title{font-family:‘Playfair Display’,serif;font-size:18px;font-weight:700;color:var(–brass);letter-spacing:1px;}
+.pause-btn{font-family:‘Crimson Pro’,serif;font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:6px 14px;border-radius:20px;border:1px solid var(–brass-dim);background:transparent;color:var(–brass-dim);cursor:pointer;-webkit-appearance:none;transition:all var(–t);}
+.pause-btn:active{background:var(–brass-dim);color:var(–felt-dark);}
+
+/* ── BOARD SVG ── */
+#board-wrap{flex:0 0 auto;padding:8px 10px;}
+#board-svg-container{width:100%;position:relative;border-radius:18px;overflow:visible;filter:drop-shadow(0 10px 40px rgba(0,0,0,.75)) drop-shadow(0 2px 6px rgba(0,0,0,.5));}
+#board-svg-container svg{display:block;width:100%;height:auto;overflow:visible;}
+
+/* ── STATUS PANEL ── */
+#status-panel{flex:0 0 auto;padding:8px 16px;display:flex;flex-direction:column;gap:5px;}
+.status-crib{font-family:‘Playfair Display’,serif;font-size:clamp(15px,4.5vw,21px);font-weight:700;text-align:center;line-height:1.2;}
+.status-deal{font-size:12px;font-weight:300;letter-spacing:3px;text-transform:uppercase;text-align:center;color:var(–ivory-dim);}
+.status-div{height:1px;background:linear-gradient(90deg,transparent,rgba(201,149,42,.3),transparent);margin:2px 0;}
+
+/* ── SCORING ZONE ── */
+#scoring-zone{flex:1 1 auto;padding:8px 16px 20px;display:flex;flex-direction:column;gap:12px;min-height:120px;}
+
+/* START ROUND button — shown between rounds
+Unity: StartRoundButton with idle/active states */
+#start-round-btn{
+font-family:‘Playfair Display’,serif;font-size:15px;font-weight:700;
+letter-spacing:2px;text-transform:uppercase;padding:16px 24px;
+border-radius:var(–radius);border:1.5px solid var(–ivory-faint);
+background:rgba(255,255,255,.04);color:var(–ivory-dim);
+cursor:pointer;-webkit-appearance:none;transition:all .4s ease;
+align-self:center;width:100%;max-width:320px;
+}
+#start-round-btn:active{transform:scale(.97);}
+
+/* PER-PLAYER SCORING ROWS — shown simultaneously during a round
+Each row: player name/score label + 4 compact score buttons
+Unity: PlayerScoringRow prefab, one per player, in a VerticalLayoutGroup */
+.pp-row{
+display:flex;align-items:center;gap:8px;
+padding:8px 4px;
+border-radius:10px;
+border:1.5px solid;
+background:rgba(0,0,0,.18);
+}
+.pp-info{
+display:flex;flex-direction:column;gap:1px;
+min-width:0;flex:0 0 auto;width:72px;
+}
+.pp-name{
+font-family:‘Playfair Display’,serif;font-size:11px;font-weight:700;
+letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.pp-score{
+font-family:‘Playfair Display’,serif;font-size:20px;font-weight:900;
+line-height:1;color:var(–ivory);
+}
+/* Score buttons grid — 4 buttons in a single row
+Unity: HorizontalLayoutGroup with 4 ScoreButton prefabs */
+.pp-btns{
+display:grid;grid-template-columns:repeat(4,1fr);gap:5px;flex:1;
+}
+.pp-btn{
+font-family:‘Crimson Pro’,serif;font-size:13px;font-weight:700;
+padding:9px 2px;border-radius:7px;border:1.5px solid;
+background:transparent;cursor:pointer;-webkit-appearance:none;
+transition:all .12s ease;text-align:center;
+}
+.pp-btn:active{transform:scale(.9);}
+.pp-btn.pp-minus{opacity:.75;}
+
+/* NEXT ROUND button — brass, full width
+Unity: NextRoundButton */
+#next-round-btn{
+font-family:‘Playfair Display’,serif;font-size:14px;font-weight:700;
+letter-spacing:2px;text-transform:uppercase;padding:14px 24px;
+border-radius:var(–radius);border:none;cursor:pointer;-webkit-appearance:none;
+background:var(–brass);color:var(–felt-dark);
+box-shadow:0 4px 20px rgba(201,149,42,.4);
+transition:all var(–t);width:100%;align-self:stretch;
+margin-top:4px;
+}
+#next-round-btn:active{transform:scale(.97);box-shadow:none;}
+
+/* Voice scoring zone */
+#voice-input-panel{display:none;flex-direction:column;gap:16px;align-items:center;}
+.voice-mini-btns{display:flex;gap:12px;}
+.voice-mini-btn{font-family:‘Crimson Pro’,serif;font-size:18px;font-weight:700;width:52px;height:52px;border-radius:12px;border:1.5px solid;background:transparent;cursor:pointer;-webkit-appearance:none;transition:all .15s ease;display:flex;align-items:center;justify-content:center;}
+.voice-mini-btn:active{transform:scale(.92);}
+#mic-btn{width:90px;height:90px;border-radius:50%;border:3px solid rgba(120,120,120,.5);background:rgba(50,50,50,.6);color:rgba(180,180,180,.8);font-size:36px;cursor:pointer;-webkit-appearance:none;transition:all .35s ease;display:flex;align-items:center;justify-content:center;align-self:center;}
+#mic-btn.recording{border-color:#4adb7a;background:rgba(74,219,122,.18);color:#4adb7a;animation:micPulse 1.2s ease-out infinite;}
+.voice-status{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(–ivory-dim);text-align:center;min-height:18px;}
+/* Shared voice next button style */
+#v-next-btn{font-family:‘Playfair Display’,serif;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:14px 24px;border-radius:var(–radius);border:none;cursor:pointer;-webkit-appearance:none;background:var(–brass);color:var(–felt-dark);box-shadow:0 4px 20px rgba(201,149,42,.4);transition:all var(–t);width:100%;max-width:320px;align-self:center;}
+#v-next-btn:active{transform:scale(.97);box-shadow:none;}
+
+/* ── SCROLL HINT ── */
+#scroll-hint{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);font-size:9px;letter-spacing:3px;color:rgba(201,149,42,.3);pointer-events:none;text-transform:uppercase;animation:breathe 3s infinite;z-index:5;}
+
+/* ── MENU ── */
+#menu{background:var(–wood);border-top:2px solid var(–brass-dim);padding:30px 20px 80px;display:flex;flex-direction:column;gap:28px;}
+.m-title{font-family:‘Playfair Display’,serif;font-size:11px;font-weight:700;letter-spacing:4px;color:var(–brass-dim);text-transform:uppercase;margin-bottom:4px;border-bottom:1px solid rgba(201,149,42,.15);padding-bottom:6px;}
+.m-row{display:flex;gap:8px;flex-wrap:wrap;}
+.m-count-btn,.m-mode-btn{font-family:‘Crimson Pro’,serif;font-size:13px;font-weight:600;padding:8px 18px;border-radius:20px;border:1.5px solid var(–brass-dim);background:transparent;color:var(–ivory-dim);cursor:pointer;-webkit-appearance:none;transition:all var(–t);letter-spacing:1px;}
+.m-count-btn.active,.m-mode-btn.active{background:var(–brass);border-color:var(–brass);color:var(–felt-dark);font-weight:700;}
+.p-name-list{display:flex;flex-direction:column;gap:10px;}
+
+/* Player name row — name input + color swatch button */
+.p-name-row{display:flex;align-items:center;gap:8px;}
+.p-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.p-input{flex:1;font-family:‘Crimson Pro’,serif;font-size:15px;padding:10px 14px;border-radius:8px;border:1.5px solid rgba(201,149,42,.2);background:rgba(255,255,255,.05);color:var(–ivory);outline:none;-webkit-appearance:none;transition:border-color var(–t);}
+.p-input:focus{border-color:var(–brass);}
+.p-input::placeholder{color:var(–ivory-faint);}
+
+/* Color picker swatch button in menu row
+Unity: ColorSwatchButton with onClick → open ColorPickerPanel */
+.p-color-btn{flex-shrink:0;width:36px;height:36px;border-radius:8px;border:2px solid rgba(255,255,255,.25);cursor:pointer;-webkit-appearance:none;transition:transform .15s ease,border-color .2s ease;position:relative;}
+.p-color-btn:active{transform:scale(.9);}
+.p-color-btn:hover{border-color:rgba(255,255,255,.6);}
+
+.m-actions{display:flex;gap:12px;flex-wrap:wrap;}
+.m-action{font-family:‘Playfair Display’,serif;font-size:13px;font-weight:700;padding:13px 22px;border-radius:var(–radius);cursor:pointer;-webkit-appearance:none;letter-spacing:1px;transition:all var(–t);flex:1;text-align:center;}
+.m-start{background:var(–brass);border:none;color:var(–felt-dark);box-shadow:0 4px 20px rgba(201,149,42,.35);}
+.m-start:active{transform:scale(.97);}
+.m-reset{background:transparent;border:1.5px solid rgba(255,74,74,.4);color:rgba(255,74,74,.7);}
+.m-reset:active{background:rgba(255,74,74,.1);}
+.tr-grid{display:flex;flex-direction:column;gap:10px;}
+.tr-row{display:flex;align-items:center;gap:10px;}
+.tr-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.tr-name{font-size:14px;font-weight:600;flex:1;min-width:60px;}
+.tr-score{font-family:‘Playfair Display’,serif;font-size:24px;font-weight:900;color:var(–ivory);min-width:40px;text-align:center;}
+.tr-max{font-size:11px;letter-spacing:2px;color:var(–ivory-faint);text-transform:uppercase;}
+.m-round{font-family:‘Crimson Pro’,serif;font-size:13px;letter-spacing:4px;color:var(–brass-dim);text-transform:uppercase;}
+
+/* ── COLOR PICKER MODAL ──
+Unity: ColorPickerPanel Canvas, SetActive(true) on swatch tap
+Dimmed backdrop + centered tile grid */
+#color-picker-modal{
+display:none;position:fixed;inset:0;z-index:300;
+background:rgba(0,0,0,.78);
+align-items:center;justify-content:center;
+backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+}
+#color-picker-modal.active{display:flex;}
+.cp-panel{
+background:#1a0e04;
+border:1.5px solid rgba(201,149,42,.4);
+border-radius:18px;
+padding:22px 18px 18px;
+width:min(320px,88vw);
+display:flex;flex-direction:column;gap:16px;
+box-shadow:0 20px 60px rgba(0,0,0,.7);
+}
+.cp-title{font-family:‘Playfair Display’,serif;font-size:13px;font-weight:700;letter-spacing:3px;color:var(–brass);text-transform:uppercase;text-align:center;}
+.cp-grid{
+display:grid;
+grid-template-columns:repeat(5,1fr);
+gap:10px;
+}
+/* Each color tile — Unity: ColorTile prefab with Image + Button */
+.cp-tile{
+aspect-ratio:1;border-radius:10px;
+border:2px solid rgba(255,255,255,.15);
+cursor:pointer;-webkit-appearance:none;
+transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;
+position:relative;
+}
+.cp-tile:active{transform:scale(.88);}
+.cp-tile.selected{border-color:rgba(255,255,255,.9);box-shadow:0 0 12px rgba(255,255,255,.4);}
+/* Cancel button */
+.cp-cancel{
+font-family:‘Crimson Pro’,serif;font-size:13px;font-weight:600;
+letter-spacing:2px;text-transform:uppercase;
+padding:10px;border-radius:10px;border:1px solid rgba(255,74,74,.35);
+background:transparent;color:rgba(255,100,100,.7);
+cursor:pointer;-webkit-appearance:none;text-align:center;
+}
+.cp-cancel:active{background:rgba(255,74,74,.1);}
+
+/* ── PAUSE OVERLAY ── */
+#pause-overlay{display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.82);flex-direction:column;align-items:center;justify-content:center;gap:16px;cursor:pointer;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
+#pause-overlay.active{display:flex;}
+.po-title{font-family:‘Playfair Display’,serif;font-size:36px;font-weight:900;color:var(–brass);letter-spacing:6px;text-transform:uppercase;text-shadow:0 0 40px rgba(201,149,42,.5);}
+.po-hint{font-size:12px;letter-spacing:4px;color:var(–ivory-dim);text-transform:uppercase;}
+.po-suits{font-size:28px;letter-spacing:16px;color:var(–brass-dim);}
+
+/* ── WIN OVERLAY ── */
+#win-overlay{display:none;position:fixed;inset:0;z-index:200;flex-direction:column;align-items:center;justify-content:center;gap:16px;cursor:pointer;}
+#win-overlay.active{display:flex;animation:winFade 1.2s ease forwards;}
+/* WIN SCREEN ORDER (top→bottom): suits · player name · “Wins the Game!” · score · tap hint */
+.wo-suits{font-size:36px;letter-spacing:20px;animation:winIn 1.4s ease .3s both;}
+.wo-name{font-family:‘Playfair Display’,serif;font-size:clamp(32px,12vw,58px);font-weight:900;text-align:center;text-shadow:0 0 60px currentColor;animation:winPop .8s cubic-bezier(.34,1.56,.64,1) .6s both;line-height:1.1;}
+.wo-label{font-size:14px;letter-spacing:6px;color:var(–ivory-dim);text-transform:uppercase;animation:winIn 1s ease 1s both;}
+.wo-score{font-size:14px;letter-spacing:4px;color:var(–ivory-dim);text-transform:uppercase;animation:winIn 1s ease 1.3s both;}
+.wo-tap{font-size:11px;letter-spacing:4px;color:var(–ivory-faint);text-transform:uppercase;margin-top:12px;animation:breathe 2s ease 2s infinite;}
+
+/* ── PEG ANIMATION ── */
+.peg-el,.peg-shadow,.peg-shine,.peg-lbl{
+transition:cx .55s cubic-bezier(.34,1.2,.64,1),cy .55s cubic-bezier(.34,1.2,.64,1),
+x  .55s cubic-bezier(.34,1.2,.64,1),y  .55s cubic-bezier(.34,1.2,.64,1);
+}
+</style>
+
+</head>
+<body>
+
+<!-- ══ PAUSE OVERLAY ══ -->
+
+<div id="pause-overlay">
+  <div class="po-suits">♠ ♥ ♦ ♣</div>
+  <div class="po-title">Paused</div>
+  <div class="po-hint">Tap anywhere to resume</div>
+</div>
+
+<!-- ══ WIN OVERLAY ══
+     Order: suits → player name → "Wins the Game!" → score → tap hint
+     Unity: WinScreen Canvas elements in this vertical order -->
+
+<div id="win-overlay">
+  <div class="wo-suits"  id="winSuits">♠ ♥ ♦ ♣</div>
+  <div class="wo-name"   id="winName">Player 1</div>
+  <div class="wo-label">Wins the Game!</div>
+  <div class="wo-score"  id="winScore">121 Points</div>
+  <div class="wo-tap">Tap to play again</div>
+</div>
+
+<!-- ══ COLOR PICKER MODAL ══
+     Unity: ColorPickerPanel Canvas, shown/hidden via SetActive
+     Stores which player index triggered it in cpTargetPlayer -->
+
+<div id="color-picker-modal">
+  <div class="cp-panel">
+    <div class="cp-title" id="cpTitle">Choose Colour</div>
+    <div class="cp-grid" id="cpGrid"></div>
+    <button class="cp-cancel" onclick="closeColorPicker()">Cancel</button>
+  </div>
+</div>
+
+<!-- ══ SPLASH SCREEN ══ -->
+
+<div id="splash-screen">
+  <div class="splash-logo">
+    <div class="splash-suits">♠ ♥ ♦ ♣</div>
+    <h1>Cribbage<br>Companion</h1>
+    <div class="sub">Score Tracker &amp; Game Guide</div>
+  </div>
+  <div class="splash-hint">▼ Scroll down to set up your game ▼</div>
+</div>
+
+<!-- ══ BOARD SCREEN ══ -->
+
+<div id="board-screen">
+  <div class="app-header">
+    <div class="app-title">Cribbage Companion</div>
+    <button class="pause-btn" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
+  </div>
+
+  <!-- BOARD SVG — rebuilt by buildBoardSVG() on start/resize/orientation
+       Snake path border: per-player coloured polyline drawn under holes.
+       Unity: LineRenderer per player column with player Color. -->
+
+  <div id="board-wrap">
+    <div id="board-svg-container"></div>
+  </div>
+
+  <div id="status-panel">
+    <div class="status-div"></div>
+    <div class="status-crib" id="statusCrib">—</div>
+    <div class="status-deal" id="statusDeal">—</div>
+    <div class="status-div"></div>
+  </div>
+
+  <div id="scoring-zone">
+    <!-- START ROUND button (shown between rounds)
+         Unity: StartRoundButton, hidden once round is active -->
+    <button id="start-round-btn" onclick="onStartRound()">Start Round</button>
+
+```
+<!-- MANUAL: simultaneous per-player scoring panels (shown during round)
+     One mini-panel per player, all visible at once.
+     Buttons: +2, +4, +10, -1  (most common cribbage increments)
+     Unity: PlayerScoringRow[] instantiated per numPlayers -->
+<div id="all-players-panel" style="display:none;flex-direction:column;gap:10px;">
+  <div id="per-player-rows"></div>
+  <!-- Next Round button — always visible once round started -->
+  <button id="next-round-btn" onclick="onNextRound()">Next Round ▶</button>
+</div>
+
+<!-- VOICE scoring panel (unchanged) -->
+<div id="voice-input-panel">
+  <div class="sc-name"  id="vScName">Player 1</div>
+  <div class="sc-cur"   id="vScCur">Current score: 0</div>
+  <div class="sc-delta" id="vScDelta">+0</div>
+  <div class="voice-mini-btns">
+    <button class="voice-mini-btn" id="vMinus1" onclick="vNudge(-1)">−1</button>
+    <button class="voice-mini-btn" id="vPlus1"  onclick="vNudge(+1)">+1</button>
+  </div>
+  <button id="mic-btn" onclick="toggleMic()">🎤</button>
+  <div class="voice-status" id="voiceStatus">Tap mic to listen</div>
+  <button id="v-next-btn" onclick="onVoiceNextPlayer()">Next Player</button>
+</div>
+```
+
+  </div><!-- end scoring-zone -->
+
+</div><!-- end board-screen -->
+
+<div id="scroll-hint">▼ menu below ▼</div>
+
+<!-- ══ MENU ══ -->
+
+<div id="menu">
+  <div class="m-round" id="menuRound">Round 0 · Game not started</div>
+  <div>
+    <div class="m-title">Players</div>
+    <div class="m-row">
+      <button class="m-count-btn active" data-n="2" onclick="setPlayerCount(2)">2 Players</button>
+      <button class="m-count-btn" data-n="3" onclick="setPlayerCount(3)">3 Players</button>
+      <button class="m-count-btn" data-n="4" onclick="setPlayerCount(4)">4 Players</button>
+    </div>
+  </div>
+  <div>
+    <div class="m-title">Player Names &amp; Colours</div>
+    <div class="p-name-list" id="nameList"></div>
+  </div>
+  <div>
+    <div class="m-title">Scoring Mode</div>
+    <div class="m-row">
+      <button class="m-mode-btn active" id="modeManual" onclick="setMode('manual')">Manual Entry</button>
+      <button class="m-mode-btn" id="modeVoice" onclick="setMode('voice')">🎤 Voice Scoring</button>
+    </div>
+  </div>
+  <div>
+    <div class="m-title">Score Tracker</div>
+    <div class="tr-grid" id="trGrid"></div>
+  </div>
+  <div class="m-actions">
+    <button class="m-action m-start" onclick="startGame()">▶ Start Game</button>
+    <button class="m-action m-reset" onclick="resetGame()">↺ Reset</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ══════════════════════════════════════════════
+   CONSTANTS — Unity: public static class C
+   ══════════════════════════════════════════════ */
+var MAX_SCORE       = 121;
+var PEGS_PER_PLAYER = 2;
+var HOLES_PER_ROW   = 10;
+var NUM_ROWS        = 12;
+
+var SCORE_BTNS = [
+  {l:'+2',v:2},{l:'+4',v:4},{l:'+6',v:6},{l:'+8',v:8},
+  {l:'+10',v:10},{l:'+12',v:12},{l:'-2',v:-2},{l:'-1',v:-1}
+];
+
+/* ══════════════════════════════════════════════
+   PLAYER COLORS
+   PC[]  = current colors (runtime mutable by color picker)
+   PCD[] = dim rgba versions (recalculated when color changes)
+   DEFAULT_PC[] = original defaults
+   ALL_COLORS[] = full palette for color picker
+
+   Unity: Color[] PlayerColors (ScriptableObject, mutable)
+   ══════════════════════════════════════════════ */
+var DEFAULT_PC = ['#4a9eff','#ff4a4a','#4adb7a','#ffd84a'];
+var PC  = DEFAULT_PC.slice();   // mutable per-game
+
+/* All available player colors (10 swatches)
+   Unity: static Color[] ColorPalette */
+var ALL_COLORS = [
+  '#4a9eff',   // Blue (default P1)
+  '#ff4a4a',   // Red  (default P2)
+  '#4adb7a',   // Green (default P3)
+  '#ffd84a',   // Yellow (default P4)
+  '#ffffff',   // White
+  '#222222',   // Black
+  '#00e5ff',   // Cyan
+  '#ff8c00',   // Orange
+  '#ff69b4',   // Pink
+  '#9b59ff',   // Purple
+];
+
+/* Compute rgba dim from hex color
+   Unity: Color.Lerp(playerColor, Color.clear, 0.72f) */
+function hexToDim(hex) {
+  var r=parseInt(hex.slice(1,3),16);
+  var g=parseInt(hex.slice(3,5),16);
+  var b=parseInt(hex.slice(5,7),16);
+  return 'rgba('+r+','+g+','+b+',.28)';
+}
+function getPCD(p){ return hexToDim(PC[p]); }
+
+/* ══════════════════════════════════════════════
+   GAME STATE — Unity: GameState.cs
+   ══════════════════════════════════════════════ */
+var G = {
+  started:false, paused:false, numPlayers:2, mode:'manual',
+  round:0,
+  names:['Player 1','Player 2','Player 3','Player 4'],
+  scores:[0,0,0,0],
+  pegPos:[[0,0],[0,0],[0,0],[0,0]],
+  scoringPhase:'waiting',
+  scoringPlayer:0,
+  pendingDelta:0
+};
+
+/* ══════════════════════════════════════════════
+   COLOR PICKER STATE — Unity: ColorPickerManager.cs
+   ══════════════════════════════════════════════ */
+var cpTargetPlayer = 0;   // which player index the picker is editing
+
+function openColorPicker(playerIdx) {
+  cpTargetPlayer = playerIdx;
+  document.getElementById('cpTitle').textContent =
+    'Colour for ' + G.names[playerIdx];
+
+  /* Build tile grid */
+  var grid = document.getElementById('cpGrid');
+  grid.innerHTML = '';
+  ALL_COLORS.forEach(function(col) {
+    var tile = document.createElement('button');
+    tile.className = 'cp-tile' + (col === PC[playerIdx] ? ' selected' : '');
+    tile.style.background = col;
+    /* Checkmark on selected tile */
+    if (col === PC[playerIdx]) {
+      /* Contrast checkmark — black on light colors, white on dark */
+      var brightness = parseInt(col.slice(1,3),16)*0.299
+                     + parseInt(col.slice(3,5),16)*0.587
+                     + parseInt(col.slice(5,7),16)*0.114;
+      tile.innerHTML = '<span style="font-size:18px;color:'+(brightness>140?'#000':'#fff')+'">✓</span>';
+      tile.style.display='flex'; tile.style.alignItems='center'; tile.style.justifyContent='center';
+    }
+    tile.addEventListener('click', function() {
+      selectColor(playerIdx, col);
+    });
+    grid.appendChild(tile);
+  });
+
+  document.getElementById('color-picker-modal').classList.add('active');
+}
+
+function selectColor(playerIdx, col) {
+  PC[playerIdx] = col;
+  closeColorPicker();
+  /* Refresh name inputs to update dot + swatch button */
+  buildNameInputs();
+  updateTrackerGrid();
+  /* If game is running, rebuild board with new color */
+  if (G.started) { buildBoardSVG(); updatePegs(); }
+}
+
+function closeColorPicker() {
+  document.getElementById('color-picker-modal').classList.remove('active');
+}
+
+/* Tap outside panel closes it */
+document.getElementById('color-picker-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeColorPicker();
+});
+
+/* ══════════════════════════════════════════════
+   VOICE SCORING — Web Speech API
+   Unity: Microphone.Start() + STT service (Google/Apple)
+   ══════════════════════════════════════════════ */
+var micRecognition = null;   // SpeechRecognition instance
+var micActive      = false;
+
+function initSpeechRecognition() {
+  /* Feature detect — Unity: check platform STT availability */
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  var r = new SR();
+  r.continuous      = false;
+  r.interimResults  = false;
+  r.lang            = 'en-US';
+  r.maxAlternatives = 1;
+
+  r.onresult = function(event) {
+    var transcript = event.results[0][0].transcript;
+    applyVoiceTranscript(transcript);
+  };
+  r.onerror = function(e) {
+    setVoiceStatus('Error: ' + e.error + '. Try again.');
+    setMicOff();
+  };
+  r.onend = function() {
+    setMicOff();
+  };
+  return r;
+}
+
+function toggleMic() {
+  if (!micActive) {
+    /* Start recording */
+    if (!micRecognition) micRecognition = initSpeechRecognition();
+    if (!micRecognition) {
+      setVoiceStatus('Voice not supported on this browser');
+      return;
+    }
+    try {
+      micRecognition.start();
+      micActive = true;
+      document.getElementById('mic-btn').classList.add('recording');
+      setVoiceStatus('🔴 Listening… say a number');
+    } catch(e) {
+      setVoiceStatus('Mic error — try again');
+    }
+  } else {
+    /* Stop recording — onend fires → setMicOff + result fires → applyVoiceTranscript */
+    micRecognition.stop();
+    setMicOff();
+    setVoiceStatus('Processing…');
+  }
+}
+
+function setMicOff() {
+  micActive = false;
+  document.getElementById('mic-btn').classList.remove('recording');
+}
+
+/* Extract the first number from transcript and apply it as score delta
+   Examples: "twelve points" → 12, "award me 8 points" → 8, "five" → 5
+   Unity: regex parse on STT result string */
+function applyVoiceTranscript(transcript) {
+  /* Try digit string first, then word-to-number map */
+  var wordNums = {
+    'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,
+    'eight':8,'nine':9,'ten':10,'eleven':11,'twelve':12,'thirteen':13,
+    'fourteen':14,'fifteen':15,'sixteen':16,'seventeen':17,'eighteen':18,
+    'nineteen':19,'twenty':20,'twenty-one':21,'twenty one':21,
+    'twenty-two':22,'twenty two':22,'twenty-three':23,'twenty three':23,
+    'twenty-four':24,'twenty four':24,'twenty-five':25,'twenty five':25,
+    'twenty-six':26,'twenty six':26,'twenty-seven':27,'twenty seven':27,
+    'twenty-eight':28,'twenty eight':28,'twenty-nine':29,'twenty nine':29
+  };
+
+  var lower = transcript.toLowerCase().trim();
+  var found = null;
+
+  /* 1. Digit match (handles "12 points", "award 8", etc.) */
+  var digitMatch = lower.match(/\b(\d+)\b/);
+  if (digitMatch) found = parseInt(digitMatch[1], 10);
+
+  /* 2. Word match */
+  if (found === null) {
+    for (var word in wordNums) {
+      if (lower.indexOf(word) !== -1) { found = wordNums[word]; break; }
+    }
+  }
+
+  if (found !== null && found >= 0) {
+    /* Apply as absolute delta for this player (replaces any previous voice input) */
+    G.pendingDelta = 0;
+    vNudge(found);
+    setVoiceStatus('Heard: "' + transcript + '" → +' + found + ' pts');
+  } else {
+    setVoiceStatus('"' + transcript + '" — no number found. Try again.');
+  }
+}
+
+function setVoiceStatus(msg) {
+  var el = document.getElementById('voiceStatus');
+  if (el) el.textContent = msg;
+}
+
+function vNudge(v) {
+  G.pendingDelta += v;
+  var proj = G.scores[G.scoringPlayer] + G.pendingDelta;
+  if (proj < 0)         G.pendingDelta = -G.scores[G.scoringPlayer];
+  if (proj > MAX_SCORE) G.pendingDelta = MAX_SCORE - G.scores[G.scoringPlayer];
+  refreshVoiceUI();
+}
+
+function refreshVoiceUI() {
+  var p   = G.scoringPlayer;
+  var col = PC[p];
+  document.getElementById('vScName').textContent  = G.names[p] + "'s Score";
+  document.getElementById('vScName').style.color  = col;
+  document.getElementById('vScCur').textContent   = 'Current score: ' + G.scores[p];
+  var d = G.pendingDelta;
+  document.getElementById('vScDelta').textContent = (d>=0?'+':'') + d;
+  document.getElementById('vScDelta').style.color = col;
+  /* Color mini buttons */
+  var vm1 = document.getElementById('vMinus1');
+  var vp1 = document.getElementById('vPlus1');
+  if (vm1) { vm1.style.borderColor='rgba(255,100,100,.4)'; vm1.style.color='rgba(255,130,130,.85)'; }
+  if (vp1) { vp1.style.borderColor=col; vp1.style.color=col; vp1.style.background=hexToDim(PC[p]); }
+  /* Next button */
+  var nb = document.getElementById('v-next-btn');
+  if (nb) {
+    var isLast = (p === G.numPlayers-1);
+    nb.textContent = isLast ? 'Next Round ▶' : 'Next Player ▶';
+    nb.style.background = col; nb.style.color = '#061510';
+  }
+}
+
+/* ══════════════════════════════════════════════
+   BOARD GEOMETRY — Unity: BoardLayout.cs
+   ══════════════════════════════════════════════ */
+var B = {};
+
+function buildGeometry(svgW, svgH, n) {
+  var padX = Math.max(6, svgW * 0.03);
+  var padY = Math.max(6, svgH * 0.03);
+  var innerW = svgW - padX*2;
+  var innerH = svgH - padY*2;
+  var colGap = Math.max(3, svgW * 0.012);
+  var colW   = (innerW - (n-1)*colGap) / n;
+  var startZoneH = Math.max(14, innerH * 0.065);
+  var winZoneH   = Math.max(12, innerH * 0.055);
+  var playH      = innerH - startZoneH - winZoneH;
+  var rowH       = playH / NUM_ROWS;
+  var holeSpacing= colW / (HOLES_PER_ROW + 0.5);
+  var holeR = Math.max(4, Math.min(holeSpacing * 0.38, rowH * 0.3, 10));
+  var pegR  = Math.max(holeR * 0.75, holeR - 1);
+
+  B = { svgW, svgH, padX, padY, innerW, innerH,
+        n, colW, colGap, rowH, holeSpacing,
+        holeR, pegR, startZoneH, winZoneH, playH,
+        holePos: [] };
+
+  for (var p=0; p<n; p++) {
+    var colLeft = padX + p*(colW+colGap);
+    var colCX   = colLeft + colW*0.5;
+    B.holePos[p] = [];
+    /* Hole 0 = START */
+    B.holePos[p][0] = { x:colCX, y: padY+winZoneH+playH+startZoneH*0.55 };
+    /* Holes 1..120 — snaking rows */
+    for (var h=1; h<=120; h++) {
+      var row  = Math.floor((h-1)/HOLES_PER_ROW);
+      var posR = (h-1) % HOLES_PER_ROW;
+      var ltr  = (row%2===0);
+      var rowCY = padY+winZoneH+playH-(row+0.5)*rowH;
+      var margin= (colW - HOLES_PER_ROW*holeSpacing)*0.5;
+      var xOff  = margin + (posR+0.5)*holeSpacing;
+      var hx    = ltr ? (colLeft+xOff) : (colLeft+colW-xOff);
+      B.holePos[p][h] = { x:hx, y:rowCY };
+    }
+    /* Hole 121 = WIN */
+    B.holePos[p][MAX_SCORE] = { x:colCX, y: padY+winZoneH*0.45 };
+  }
+}
+
+/* ══════════════════════════════════════════════
+   BUILD BOARD SVG
+   Unity: BoardManager.DrawBoard()
+   ══════════════════════════════════════════════ */
+function buildBoardSVG() {
+  var cont = document.getElementById('board-svg-container');
+  var n    = G.numPlayers;
+  var cW   = cont.clientWidth || 360;
+  var land = window.innerWidth > window.innerHeight;
+  var svgW, svgH;
+  if (land) {
+    svgW = cW;
+    svgH = Math.max(100, Math.round(Math.min(window.innerHeight*0.5, cW*0.28)));
+  } else {
+    svgW = cW;
+    var rowsTotal = NUM_ROWS + 1.8;
+    var colsEff   = HOLES_PER_ROW / n;
+    svgH = Math.round(svgW * (rowsTotal/colsEff));
+    svgH = Math.min(svgH, Math.round(window.innerHeight*0.78));
+    svgH = Math.max(svgH, 300);
+  }
+
+  buildGeometry(svgW, svgH, n);
+
+  var s = [];
+  s.push('<svg viewBox="0 0 '+svgW+' '+svgH+'" xmlns="http://www.w3.org/2000/svg" overflow="visible">');
+
+  /* DEFS */
+  s.push('<defs>');
+  s.push('<linearGradient id="wg" x1="0" y1="0" x2="1" y2="0">');
+  ['#1a0c03','#3d1f08','#5a2e0a','#6b3a0c','#5a2e0a','#3d1f08','#1a0c03'].forEach(function(c,i){
+    s.push('<stop offset="'+(i*16.6).toFixed(0)+'%" stop-color="'+c+'"/>');
+  });
+  s.push('</linearGradient>');
+  s.push('<radialGradient id="fg" cx="50%" cy="45%" r="60%">');
+  s.push('<stop offset="0%" stop-color="#143f28"/>');
+  s.push('<stop offset="100%" stop-color="#072010"/>');
+  s.push('</radialGradient>');
+  s.push('</defs>');
+
+  /* Wood frame */
+  s.push('<rect x="0" y="0" width="'+svgW+'" height="'+svgH+'" rx="16" fill="url(#wg)"/>');
+  s.push('<rect x="2" y="2" width="'+(svgW-4)+'" height="'+(svgH-4)+'" rx="14" fill="none" stroke="#c9952a" stroke-width="1.8" opacity=".65"/>');
+  s.push('<rect x="5" y="5" width="'+(svgW-10)+'" height="'+(svgH-10)+'" rx="12" fill="none" stroke="#c9952a" stroke-width=".5" opacity=".3"/>');
+
+  /* Felt surface */
+  var px=B.padX, py=B.padY;
+  s.push('<rect x="'+f(px)+'" y="'+f(py)+'" width="'+f(svgW-px*2)+'" height="'+f(svgH-py*2)+'" rx="10" fill="url(#fg)"/>');
+  for (var ty=py+4; ty<svgH-py-4; ty+=9)
+    s.push('<line x1="'+f(px+3)+'" y1="'+f(ty)+'" x2="'+f(svgW-px-3)+'" y2="'+f(ty)+'" stroke="rgba(255,255,255,.018)" stroke-width=".5"/>');
+
+  /* Column backgrounds + stripes */
+  for (var p=0; p<n; p++) {
+    var cl = px + p*(B.colW+B.colGap);
+    s.push('<rect x="'+f(cl)+'" y="'+f(py+2)+'" width="'+f(B.colW)+'" height="'+f(svgH-py*2-4)+'" rx="7" fill="'+(p%2===0?'rgba(0,0,0,.13)':'rgba(0,0,0,.06)')+'"/>');
+    s.push('<rect x="'+f(cl)+'" y="'+f(py+10)+'" width="3.5" height="'+f(svgH-py*2-20)+'" rx="1.8" fill="'+PC[p]+'" opacity=".75"/>');
+    var colCX = cl + B.colW*0.5;
+    var init  = G.names[p].charAt(0).toUpperCase();
+    var initSz= Math.min(B.colW*0.24, 12);
+    s.push('<text x="'+f(colCX)+'" y="'+f(py-1)+'" text-anchor="middle" font-size="'+f(initSz)+'" fill="'+PC[p]+'" font-family="Georgia,serif" font-weight="bold" opacity=".85">'+init+'</text>');
+  }
+
+  /* Column dividers */
+  for (var p=1; p<n; p++) {
+    var dx = px + p*(B.colW+B.colGap) - B.colGap*0.5;
+    s.push('<line x1="'+f(dx)+'" y1="'+f(py+4)+'" x2="'+f(dx)+'" y2="'+f(svgH-py-4)+'" stroke="rgba(201,149,42,.18)" stroke-width=".8" stroke-dasharray="3,6"/>');
+  }
+
+  /* ── SNAKE PATH BORDER ──────────────────────────────────────────────
+     Single wide glow polyline per player at 25% opacity.
+     Drawn BEHIND holes so it acts as a visible track highlight.
+     Unity: LineRenderer per player, player color, opacity 0.25
+     ──────────────────────────────────────────────────────────────── */
+  for (var p=0; p<n; p++) {
+    var pts = [];
+    pts.push(B.holePos[p][0]);
+    for (var h=1; h<=120; h++) pts.push(B.holePos[p][h]);
+    pts.push(B.holePos[p][MAX_SCORE]);
+    var pStr = pts.map(function(hp){ return f(hp.x)+','+f(hp.y); }).join(' ');
+    s.push('<polyline points="'+pStr+'" fill="none"');
+    s.push(' stroke="'+PC[p]+'" stroke-width="'+f(B.holeR*2.8)+'"');
+    s.push(' stroke-linejoin="round" stroke-linecap="round" opacity=".25"/>');
+  }
+
+  /* Snake connector arcs (between row end and next row start) */
+  for (var p=0; p<n; p++) {
+    var cl2 = px + p*(B.colW+B.colGap);
+    for (var row=0; row<NUM_ROWS-1; row++) {
+      var ltr  = (row%2===0);
+      var hEnd = row*HOLES_PER_ROW + HOLES_PER_ROW;
+      var hNxt = hEnd + 1;
+      if (hEnd>120||hNxt>120) continue;
+      var pe = B.holePos[p][hEnd];
+      var pn = B.holePos[p][hNxt];
+      if (!pe||!pn) continue;
+      var arcX = ltr ? (cl2+B.colW+B.colGap*0.1) : (cl2-B.colGap*0.1);
+      var midY = (pe.y+pn.y)*0.5;
+      s.push('<path d="M '+f(pe.x)+' '+f(pe.y)+' Q '+f(arcX)+' '+f(midY)+' '+f(pn.x)+' '+f(pn.y)+'"');
+      s.push(' fill="none" stroke="rgba(201,149,42,.2)" stroke-width="1"/>');
+    }
+  }
+
+  /* Milestone labels */
+  for (var p=0; p<n; p++) {
+    for (var h=10; h<=120; h+=10) {
+      var hp = B.holePos[p][h];
+      if (!hp) continue;
+      s.push('<text x="'+f(hp.x)+'" y="'+f(hp.y-B.holeR-1)+'" text-anchor="middle" font-size="'+f(B.holeR*.95)+'" fill="rgba(201,149,42,.45)" font-family="Georgia,serif">'+h+'</text>');
+    }
+  }
+
+  /* Start zones */
+  for (var p=0; p<n; p++) {
+    var h0 = B.holePos[p][0];
+    s.push('<circle cx="'+f(h0.x)+'" cy="'+f(h0.y)+'" r="'+f(B.holeR+2.5)+'" fill="rgba(0,0,0,.35)" stroke="rgba(201,149,42,.55)" stroke-width="1"/>');
+    s.push('<text x="'+f(h0.x)+'" y="'+f(h0.y+B.holeR*.38)+'" text-anchor="middle" font-size="'+f(B.holeR)+'" fill="rgba(201,149,42,.75)" font-family="Georgia,serif" font-weight="bold">S</text>');
+  }
+
+  /* Win zones */
+  for (var p=0; p<n; p++) {
+    var hw = B.holePos[p][MAX_SCORE];
+    s.push('<circle cx="'+f(hw.x)+'" cy="'+f(hw.y)+'" r="'+f(B.holeR+3)+'" fill="rgba(201,149,42,.12)" stroke="rgba(201,149,42,.75)" stroke-width="1.5"/>');
+    s.push('<text x="'+f(hw.x)+'" y="'+f(hw.y+B.holeR*.38)+'" text-anchor="middle" font-size="'+f(B.holeR*.95)+'" fill="rgba(201,149,42,.9)" font-family="Georgia,serif" font-weight="bold">W</text>');
+  }
+
+  /* Holes (1..120) */
+  for (var p=0; p<n; p++) {
+    for (var h=1; h<=120; h++) {
+      var hp = B.holePos[p][h];
+      if (!hp) continue;
+      s.push('<circle cx="'+f(hp.x)+'" cy="'+f(hp.y)+'" r="'+f(B.holeR)+'" fill="rgba(0,0,0,.62)"/>');
+      var op = (h%HOLES_PER_ROW===0) ? .25 : .1;
+      s.push('<circle cx="'+f(hp.x)+'" cy="'+f(hp.y)+'" r="'+f(B.holeR-.7)+'" fill="none" stroke="rgba(255,255,255,'+op+')" stroke-width=".7"/>');
+    }
+  }
+
+  /* Pegs + score labels (rendered on top of everything) */
+  for (var p=0; p<n; p++) {
+    for (var peg=PEGS_PER_PLAYER-1; peg>=0; peg--) {
+      var h0  = B.holePos[p][0];
+      var isFront = (peg===0);
+      var offX = isFront ? B.pegR*.4 : -B.pegR*.4;
+      var offY = isFront ? -B.pegR*.15 : B.pegR*.15;
+      s.push('<circle id="ps_'+p+'_'+peg+'" cx="'+f(h0.x+offX+1)+'" cy="'+f(h0.y+offY+1.5)+'" r="'+f(B.pegR)+'" fill="rgba(0,0,0,.55)" class="peg-shadow"/>');
+      if (isFront) {
+        s.push('<circle id="p_'+p+'_'+peg+'" cx="'+f(h0.x+offX)+'" cy="'+f(h0.y+offY)+'" r="'+f(B.pegR)+'" fill="'+PC[p]+'" class="peg-el"/>');
+        s.push('<circle id="psh_'+p+'" cx="'+f(h0.x+offX-B.pegR*.22)+'" cy="'+f(h0.y+offY-B.pegR*.28)+'" r="'+f(B.pegR*.32)+'" fill="rgba(255,255,255,.55)" class="peg-shine" pointer-events="none"/>');
+      } else {
+        s.push('<circle id="p_'+p+'_'+peg+'" cx="'+f(h0.x+offX)+'" cy="'+f(h0.y+offY)+'" r="'+f(B.pegR)+'" fill="rgba(0,0,0,.45)" stroke="'+PC[p]+'" stroke-width="1.8" class="peg-el"/>');
+      }
+    }
+    /* Score label above front peg — 50% larger than before
+       lblSz: was pegR*1.15, now pegR*1.75 for visibility at table distance
+       Unity: TextMeshPro fontSize *= 1.5 */
+    var h0s = B.holePos[p][0];
+    var lblSz = Math.max(10, Math.min(B.pegR*1.75, 18));
+    var offXf = B.pegR*.4, offYf = -B.pegR*.15;
+    s.push('<text id="lbl_'+p+'" x="'+f(h0s.x+offXf)+'" y="'+f(h0s.y+offYf-B.pegR-3)+'"');
+    s.push(' text-anchor="middle" font-size="'+f(lblSz)+'" font-weight="bold"');
+    s.push(' font-family="Georgia,serif" fill="'+PC[p]+'"');
+    s.push(' stroke="rgba(0,0,0,.75)" stroke-width="2.5" paint-order="stroke"');
+    s.push(' class="peg-lbl">0</text>');
+  }
+
+  s.push('</svg>');
+  cont.innerHTML = s.join('');
+}
+
+/* ══════════════════════════════════════════════
+   UPDATE PEGS
+   ══════════════════════════════════════════════ */
+function updatePegs() {
+  for (var p=0; p<G.numPlayers; p++) {
+    for (var peg=0; peg<PEGS_PER_PLAYER; peg++) {
+      var hIdx = Math.min(G.pegPos[p][peg], MAX_SCORE);
+      var hp   = B.holePos[p][hIdx];
+      if (!hp) continue;
+      var isFront = (peg===0);
+      var offX = isFront ?  B.pegR*.4 : -B.pegR*.4;
+      var offY = isFront ? -B.pegR*.15:  B.pegR*.15;
+      setXY('p_'+p+'_'+peg,  hp.x+offX,   hp.y+offY);
+      setXY('ps_'+p+'_'+peg, hp.x+offX+1, hp.y+offY+1.5);
+      if (isFront) {
+        setXY('psh_'+p, hp.x+offX-B.pegR*.22, hp.y+offY-B.pegR*.28);
+        var lbl = document.getElementById('lbl_'+p);
+        if (lbl) {
+          lbl.setAttribute('x', f(hp.x+offX));
+          lbl.setAttribute('y', f(hp.y+offY-B.pegR-3));
+          lbl.textContent = G.scores[p];
+        }
+      }
+    }
+  }
+}
+function setXY(id,x,y){ var el=document.getElementById(id); if(!el)return; el.setAttribute('cx',f(x)); el.setAttribute('cy',f(y)); }
+function f(n){ return (+n).toFixed(1); }
+
+/* ══════════════════════════════════════════════
+   ADVANCE PEG (leapfrog)
+   ══════════════════════════════════════════════ */
+function advancePeg(p, pts) {
+  var front = G.pegPos[p][0];
+  var newPos = Math.min(front+pts, MAX_SCORE);
+  G.pegPos[p][1] = front;
+  G.pegPos[p][0] = newPos;
+  G.scores[p]    = newPos;
+  updatePegs();
+  updateTrackerGrid();
+  return newPos;
+}
+
+/* ══════════════════════════════════════════════
+   STATUS PANEL — "deals" instead of "shuffles"
+   Unity: DealerManager.GetDealerName()
+   ══════════════════════════════════════════════ */
+function updateStatus() {
+  /* Cribbage rules:
+     - The dealer holds the crib (the extra hand they score).
+     - The player to the dealer's LEFT cuts the deck.
+     Round 1: Player 1 deals & has crib. Player 2 cuts.
+     Round 2: Player 2 deals & has crib. Player 3 (or P1 in 2p) cuts. Etc.
+     Unity: DealerManager.GetDealerIdx(int round, int numPlayers)
+  */
+  var d    = (G.round - 1) % G.numPlayers;        // dealer index (0-based)
+  var cuts = (d + 1) % G.numPlayers;              // cutter = left of dealer
+  document.getElementById('statusCrib').textContent = G.names[d] + "'s Deal & Crib";
+  document.getElementById('statusCrib').style.color = PC[d];
+  document.getElementById('statusDeal').textContent = G.names[cuts] + ' cuts  ·  Round ' + G.round;
+  document.getElementById('menuRound').textContent  = 'Round ' + G.round;
+}
+
+/* ══════════════════════════════════════════════
+   MANUAL SCORING FLOW — simultaneous per-player
+   Unity: ScoringManager.cs — all PlayerScoringRows
+   active at once, NextRound commits all deltas
+   ══════════════════════════════════════════════ */
+
+/* Score buttons for manual mode: 4 compact buttons per player */
+var MANUAL_BTNS = [
+  {l:'+2',v:2},{l:'+4',v:4},{l:'+10',v:10},{l:'−1',v:-1}
+];
+
+/* Per-player pending deltas during a round (separate from voice pendingDelta)
+   Unity: int[] playerRoundDeltas */
+var playerDeltas = [0,0,0,0];
+
+function onStartRound() {
+  /* Transition: hide Start Round btn, show all-players panel */
+  document.getElementById('start-round-btn').style.display = 'none';
+  if (G.mode === 'voice') {
+    G.scoringPlayer = 0; G.pendingDelta = 0;
+    document.getElementById('voice-input-panel').style.display = 'flex';
+    refreshVoiceUI(); setVoiceStatus('Tap mic to listen');
+  } else {
+    playerDeltas = [0,0,0,0];
+    buildAllPlayerRows();
+    document.getElementById('all-players-panel').style.display = 'flex';
+  }
+  G.scoringPhase = 'scoring';
+}
+
+/* Build simultaneous per-player scoring rows
+   Unity: foreach player → Instantiate(PlayerScoringRowPrefab) */
+function buildAllPlayerRows() {
+  var cont = document.getElementById('per-player-rows');
+  cont.innerHTML = '';
+  cont.style.display = 'flex';
+  cont.style.flexDirection = 'column';
+  cont.style.gap = '8px';
+
+  for (var i = 0; i < G.numPlayers; i++) {
+    (function(idx) {
+      var col = PC[idx];
+      var dim = getPCD(idx);
+
+      var row = document.createElement('div');
+      row.className = 'pp-row';
+      row.id = 'pprow_' + idx;
+      row.style.borderColor = col.replace(')', ',.4)').replace('rgb(','rgba(').replace('#', 'rgba(') || col;
+      /* Simpler border color approach: */
+      row.style.borderColor = hexToDim(col).replace('.28)', '.45)');
+
+      /* Info section: name + running total */
+      var info = document.createElement('div');
+      info.className = 'pp-info';
+
+      var nameEl = document.createElement('div');
+      nameEl.className = 'pp-name';
+      nameEl.textContent = G.names[idx];
+      nameEl.style.color = col;
+
+      var scoreEl = document.createElement('div');
+      scoreEl.className = 'pp-score';
+      scoreEl.id = 'pp-score-' + idx;
+      scoreEl.textContent = G.scores[idx];
+      scoreEl.style.color = col;
+
+      info.appendChild(nameEl);
+      info.appendChild(scoreEl);
+
+      /* Buttons grid */
+      var btns = document.createElement('div');
+      btns.className = 'pp-btns';
+
+      MANUAL_BTNS.forEach(function(sb) {
+        var b = document.createElement('button');
+        b.className = 'pp-btn' + (sb.v < 0 ? ' pp-minus' : '');
+        b.textContent = sb.l;
+        b.style.borderColor = sb.v < 0 ? 'rgba(255,100,100,.4)' : col;
+        b.style.color       = sb.v < 0 ? 'rgba(255,130,130,.85)' : col;
+        b.style.background  = sb.v < 0 ? 'transparent' : dim;
+        b.setAttribute('data-v', sb.v);
+        b.addEventListener('click', function(e) {
+          e.stopPropagation();
+          applyPlayerDelta(idx, parseInt(b.getAttribute('data-v'), 10));
+        });
+        btns.appendChild(b);
+      });
+
+      row.appendChild(info);
+      row.appendChild(btns);
+      cont.appendChild(row);
+    })(i);
+  }
+}
+
+/* Apply a score delta immediately to a player during the round
+   Score updates live — peg moves, label updates in real time.
+   Unity: PlayerScoringRow.OnButtonClick(int delta) → BoardManager.AdvancePeg() */
+function applyPlayerDelta(playerIdx, delta) {
+  var newScore = advancePeg(playerIdx, delta);
+  /* Update the score display in the row */
+  var sc = document.getElementById('pp-score-' + playerIdx);
+  if (sc) sc.textContent = newScore;
+  /* Check win */
+  if (newScore >= MAX_SCORE) {
+    setTimeout(function() { doWin(playerIdx); }, 400);
+  }
+}
+
+/* Next Round: advance round counter, reset UI, show Start Round btn again
+   Unity: GameManager.AdvanceRound() */
+function onNextRound() {
+  G.round++;
+  G.scoringPhase = 'waiting';
+  playerDeltas = [0,0,0,0];
+  document.getElementById('all-players-panel').style.display = 'none';
+  document.getElementById('start-round-btn').style.display = '';
+  updateStatus();
+  updateTrackerGrid();
+}
+
+/* ══════════════════════════════════════════════
+   VOICE SCORING FLOW (sequential per-player, unchanged)
+   Unity: VoiceScoringManager.cs
+   ══════════════════════════════════════════════ */
+function onVoiceNextPlayer() {
+  if (micActive && micRecognition) { micRecognition.stop(); setMicOff(); }
+  var p = G.scoringPlayer;
+  if (G.pendingDelta !== 0) {
+    var ns = advancePeg(p, G.pendingDelta);
+    if (ns >= MAX_SCORE) { setTimeout(function(){ doWin(p); }, 450); return; }
+  }
+  G.pendingDelta = 0;
+  if (p < G.numPlayers - 1) {
+    G.scoringPlayer++;
+    refreshVoiceUI(); setVoiceStatus('Tap mic to listen');
+  } else {
+    /* Last player done — end voice round */
+    G.round++;
+    G.scoringPhase = 'waiting';
+    G.scoringPlayer = 0; G.pendingDelta = 0;
+    document.getElementById('voice-input-panel').style.display = 'none';
+    document.getElementById('start-round-btn').style.display = '';
+    updateStatus(); updateTrackerGrid();
+  }
+}
+
+/* ══════════════════════════════════════════════
+   WIN
+   ══════════════════════════════════════════════ */
+function doWin(p) {
+  document.getElementById('winName').textContent  = G.names[p];
+  document.getElementById('winName').style.color  = PC[p];
+  document.getElementById('winScore').textContent = '121 Points · Round '+G.round;
+  document.getElementById('winSuits').style.color = PC[p];
+  var ov=document.getElementById('win-overlay');
+  ov.classList.add('active');
+  ov.onclick=function(){ ov.classList.remove('active'); resetGame(); };
+}
+
+/* ══════════════════════════════════════════════
+   PAUSE
+   ══════════════════════════════════════════════ */
+function togglePause() {
+  if (!G.started) return;
+  G.paused=!G.paused;
+  document.getElementById('pause-overlay').classList.toggle('active',G.paused);
+  document.getElementById('pauseBtn').textContent=G.paused?'▶ Resume':'⏸ Pause';
+}
+document.getElementById('pause-overlay').addEventListener('click',function(e){
+  e.stopPropagation(); if(G.paused) togglePause();
+});
+
+/* ══════════════════════════════════════════════
+   MENU HELPERS
+   ══════════════════════════════════════════════ */
+function setPlayerCount(n) {
+  G.numPlayers=n;
+  document.querySelectorAll('.m-count-btn').forEach(function(b){
+    b.classList.toggle('active',parseInt(b.getAttribute('data-n'),10)===n);
+  });
+  buildNameInputs(); updateTrackerGrid();
+}
+
+/* Build player name rows with name input + color swatch button
+   Unity: PlayerNameRow prefab containing InputField + ColorSwatchButton */
+function buildNameInputs() {
+  var list=document.getElementById('nameList'); list.innerHTML='';
+  for (var i=0; i<G.numPlayers; i++) {
+    (function(idx){
+      var row=document.createElement('div'); row.className='p-name-row';
+
+      /* Color dot */
+      var dot=document.createElement('div'); dot.className='p-dot';
+      dot.style.background=PC[idx];
+
+      /* Name input */
+      var inp=document.createElement('input');
+      inp.type='text'; inp.className='p-input'; inp.maxLength=16;
+      inp.placeholder='Player '+(idx+1)+' name';
+      inp.value=G.names[idx]==='Player '+(idx+1)?'':G.names[idx];
+      inp.addEventListener('input',function(){
+        G.names[idx]=inp.value.trim()||'Player '+(idx+1);
+        updateTrackerGrid();
+      });
+      inp.addEventListener('focus',function(){inp.style.borderColor=PC[idx];inp.style.boxShadow='0 0 0 3px '+getPCD(idx);});
+      inp.addEventListener('blur', function(){inp.style.borderColor='';inp.style.boxShadow='';});
+
+      /* Color swatch button — opens color picker
+         Unity: ColorSwatchButton.OnClick → ColorPickerPanel.Open(playerIdx) */
+      var swatchBtn=document.createElement('button');
+      swatchBtn.className='p-color-btn';
+      swatchBtn.style.background=PC[idx];
+      swatchBtn.title='Change colour';
+      swatchBtn.addEventListener('click',function(e){
+        e.stopPropagation();
+        openColorPicker(idx);
+      });
+
+      row.appendChild(dot); row.appendChild(inp); row.appendChild(swatchBtn);
+      list.appendChild(row);
+    })(i);
+  }
+}
+
+function setMode(m) {
+  G.mode=m;
+  document.getElementById('modeManual').classList.toggle('active',m==='manual');
+  document.getElementById('modeVoice').classList.toggle('active', m==='voice');
+}
+
+function updateTrackerGrid() {
+  var g=document.getElementById('trGrid'); g.innerHTML='';
+  for (var i=0; i<G.numPlayers; i++) {
+    (function(idx){
+      var row=document.createElement('div'); row.className='tr-row';
+      var dot=document.createElement('div'); dot.className='tr-dot'; dot.style.background=PC[idx];
+      var nm=document.createElement('div'); nm.className='tr-name'; nm.textContent=G.names[idx]; nm.style.color=PC[idx];
+      var sc=document.createElement('div'); sc.className='tr-score'; sc.textContent=G.scores[idx];
+      var mx=document.createElement('div'); mx.className='tr-max'; mx.textContent='/ 121';
+      row.appendChild(dot); row.appendChild(nm); row.appendChild(sc); row.appendChild(mx);
+      g.appendChild(row);
+    })(i);
+  }
+}
+
+/* ══════════════════════════════════════════════
+   START / RESET
+   ══════════════════════════════════════════════ */
+function startGame() {
+  document.querySelectorAll('.p-input').forEach(function(inp,i){
+    G.names[i]=inp.value.trim()||'Player '+(i+1);
+  });
+  G.started=true; G.paused=false; G.round=1;
+  G.scores=[0,0,0,0]; G.pegPos=[[0,0],[0,0],[0,0],[0,0]];
+  G.scoringPhase='waiting'; G.scoringPlayer=0; G.pendingDelta=0;
+  micActive=false; if(micRecognition){try{micRecognition.abort();}catch(e){}} micRecognition=null;
+
+  document.getElementById('splash-screen').style.display='none';
+  document.getElementById('board-screen').style.display='flex';
+  document.getElementById('all-players-panel').style.display='none';
+  document.getElementById('voice-input-panel').style.display='none';
+  document.getElementById('start-round-btn').style.display='';
+  playerDeltas = [0,0,0,0];
+
+  setTimeout(function(){
+    buildBoardSVG(); updatePegs(); updateStatus(); updateTrackerGrid();
+    window.scrollTo({top:0,behavior:'smooth'});
+  },80);
+}
+
+function resetGame() {
+  G.started=false; G.paused=false; G.round=0;
+  G.scores=[0,0,0,0]; G.pegPos=[[0,0],[0,0],[0,0],[0,0]];
+  G.scoringPhase='waiting'; G.pendingDelta=0;
+  micActive=false; if(micRecognition){try{micRecognition.abort();}catch(e){}} micRecognition=null;
+  PC = DEFAULT_PC.slice();  // reset colors to defaults
+
+  document.getElementById('board-screen').style.display='none';
+  document.getElementById('splash-screen').style.display='flex';
+  document.getElementById('pause-overlay').classList.remove('active');
+  document.getElementById('win-overlay').classList.remove('active');
+  document.getElementById('pauseBtn').textContent='⏸ Pause';
+  document.getElementById('all-players-panel').style.display='none';
+  document.getElementById('voice-input-panel').style.display='none';
+  document.getElementById('start-round-btn').style.display='';
+  playerDeltas = [0,0,0,0];
+  updateTrackerGrid(); buildNameInputs();
+  document.getElementById('menuRound').textContent='Round 0 · Game not started';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ══════════════════════════════════════════════
+   RESIZE
+   ══════════════════════════════════════════════ */
+var _rt;
+window.addEventListener('resize',function(){
+  clearTimeout(_rt);
+  _rt=setTimeout(function(){ if(G.started){buildBoardSVG();updatePegs();} },120);
+});
+
+/* ══════════════════════════════════════════════
+   INIT
+   ══════════════════════════════════════════════ */
+(function(){ buildNameInputs(); updateTrackerGrid(); setPlayerCount(2); })();
+</script>
+
+</body>
+</html>
