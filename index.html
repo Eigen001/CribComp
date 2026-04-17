@@ -1,19 +1,15 @@
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════════════╗
-  ║  CRIBBAGE COMPANION  v3.0                                           ║
-  ║  CHANGES FROM v2:                                                   ║
-  ║  1. Win screen: name first, then "Wins the Game!"                  ║
-  ║  2. Player color picker (10 colors, modal overlay)                 ║
-  ║  3. Voice Scoring mode via Web Speech API                          ║
-  ║  4. "deals" label instead of "shuffles"                            ║
-  ║  5. Snake path border drawn per player column on board             ║
-  ║                                                                      ║
-  ║  UNITY / C# NOTES:                                                  ║
-  ║  - G{} → GameState.cs                                              ║
-  ║  - PC[] player colors → Color[] (runtime mutable)                  ║
-  ║  - Voice: Web Speech API → Unity Microphone + ML transcription     ║
-  ║  - Snake path border → LineRenderer with player color              ║
+  ║  CRIBBAGE COMPANION  v4.0                                           ║
+  ║  NEW IN v4: 4-player team rules (Option A board)                   ║
+  ║  - P1+P3 = Team A (uses PC[0] color)                               ║
+  ║  - P2+P4 = Team B (uses PC[1] color)                               ║
+  ║  - Board shows 2 columns in 4p mode (one per team)                 ║
+  ║  - Both partners advance the SAME shared team track                ║
+  ║  - Win screen: "Alice & Charlie Win!" (team names)                 ║
+  ║  - Status: dealer's crib noted + team context in 4p                ║
+  ║  - 2p and 3p modes completely unchanged                            ║
   ╚══════════════════════════════════════════════════════════════════════╝
 -->
 <html lang="en">
@@ -76,69 +72,20 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
 
 /* ── SCORING ZONE ── */
 #scoring-zone{flex:1 1 auto;padding:8px 16px 20px;display:flex;flex-direction:column;gap:12px;min-height:120px;}
-
-/* START ROUND button — shown between rounds
-   Unity: StartRoundButton with idle/active states */
-#start-round-btn{
-  font-family:'Playfair Display',serif;font-size:15px;font-weight:700;
-  letter-spacing:2px;text-transform:uppercase;padding:16px 24px;
-  border-radius:var(--radius);border:1.5px solid var(--ivory-faint);
-  background:rgba(255,255,255,.04);color:var(--ivory-dim);
-  cursor:pointer;-webkit-appearance:none;transition:all .4s ease;
-  align-self:center;width:100%;max-width:320px;
-}
+#start-round-btn{font-family:'Playfair Display',serif;font-size:15px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:16px 24px;border-radius:var(--radius);border:1.5px solid var(--ivory-faint);background:rgba(255,255,255,.04);color:var(--ivory-dim);cursor:pointer;-webkit-appearance:none;transition:all .4s ease;align-self:center;width:100%;max-width:320px;}
 #start-round-btn:active{transform:scale(.97);}
-
-/* PER-PLAYER SCORING ROWS — shown simultaneously during a round
-   Each row: player name/score label + 4 compact score buttons
-   Unity: PlayerScoringRow prefab, one per player, in a VerticalLayoutGroup */
-.pp-row{
-  display:flex;align-items:center;gap:8px;
-  padding:8px 4px;
-  border-radius:10px;
-  border:1.5px solid;
-  background:rgba(0,0,0,.18);
-}
-.pp-info{
-  display:flex;flex-direction:column;gap:1px;
-  min-width:0;flex:0 0 auto;width:72px;
-}
-.pp-name{
-  font-family:'Playfair Display',serif;font-size:11px;font-weight:700;
-  letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-.pp-score{
-  font-family:'Playfair Display',serif;font-size:20px;font-weight:900;
-  line-height:1;color:var(--ivory);
-}
-/* Score buttons grid — 4 buttons in a single row
-   Unity: HorizontalLayoutGroup with 4 ScoreButton prefabs */
-.pp-btns{
-  display:grid;grid-template-columns:repeat(4,1fr);gap:5px;flex:1;
-}
-.pp-btn{
-  font-family:'Crimson Pro',serif;font-size:13px;font-weight:700;
-  padding:9px 2px;border-radius:7px;border:1.5px solid;
-  background:transparent;cursor:pointer;-webkit-appearance:none;
-  transition:all .12s ease;text-align:center;
-}
+.pp-row{display:flex;align-items:center;gap:8px;padding:8px 4px;border-radius:10px;border:1.5px solid;background:rgba(0,0,0,.18);}
+.pp-info{display:flex;flex-direction:column;gap:1px;min-width:0;flex:0 0 auto;width:72px;}
+.pp-name{font-family:'Playfair Display',serif;font-size:11px;font-weight:700;letter-spacing:.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pp-score{font-family:'Playfair Display',serif;font-size:20px;font-weight:900;line-height:1;color:var(--ivory);}
+.pp-btns{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;flex:1;}
+.pp-btn{font-family:'Crimson Pro',serif;font-size:13px;font-weight:700;padding:9px 2px;border-radius:7px;border:1.5px solid;background:transparent;cursor:pointer;-webkit-appearance:none;transition:all .12s ease;text-align:center;}
 .pp-btn:active{transform:scale(.9);}
 .pp-btn.pp-minus{opacity:.75;}
-
-/* NEXT ROUND button — brass, full width
-   Unity: NextRoundButton */
-#next-round-btn{
-  font-family:'Playfair Display',serif;font-size:14px;font-weight:700;
-  letter-spacing:2px;text-transform:uppercase;padding:14px 24px;
-  border-radius:var(--radius);border:none;cursor:pointer;-webkit-appearance:none;
-  background:var(--brass);color:var(--felt-dark);
-  box-shadow:0 4px 20px rgba(201,149,42,.4);
-  transition:all var(--t);width:100%;align-self:stretch;
-  margin-top:4px;
-}
+/* 4p team label above each scoring row */
+.pp-team-label{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--ivory-faint);padding:4px 4px 0;font-family:'Crimson Pro',serif;}
+#next-round-btn{font-family:'Playfair Display',serif;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:14px 24px;border-radius:var(--radius);border:none;cursor:pointer;-webkit-appearance:none;background:var(--brass);color:var(--felt-dark);box-shadow:0 4px 20px rgba(201,149,42,.4);transition:all var(--t);width:100%;align-self:stretch;margin-top:4px;}
 #next-round-btn:active{transform:scale(.97);box-shadow:none;}
-
-/* Voice scoring zone */
 #voice-input-panel{display:none;flex-direction:column;gap:16px;align-items:center;}
 .voice-mini-btns{display:flex;gap:12px;}
 .voice-mini-btn{font-family:'Crimson Pro',serif;font-size:18px;font-weight:700;width:52px;height:52px;border-radius:12px;border:1.5px solid;background:transparent;cursor:pointer;-webkit-appearance:none;transition:all .15s ease;display:flex;align-items:center;justify-content:center;}
@@ -146,9 +93,12 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
 #mic-btn{width:90px;height:90px;border-radius:50%;border:3px solid rgba(120,120,120,.5);background:rgba(50,50,50,.6);color:rgba(180,180,180,.8);font-size:36px;cursor:pointer;-webkit-appearance:none;transition:all .35s ease;display:flex;align-items:center;justify-content:center;align-self:center;}
 #mic-btn.recording{border-color:#4adb7a;background:rgba(74,219,122,.18);color:#4adb7a;animation:micPulse 1.2s ease-out infinite;}
 .voice-status{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--ivory-dim);text-align:center;min-height:18px;}
-/* Shared voice next button style */
 #v-next-btn{font-family:'Playfair Display',serif;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:14px 24px;border-radius:var(--radius);border:none;cursor:pointer;-webkit-appearance:none;background:var(--brass);color:var(--felt-dark);box-shadow:0 4px 20px rgba(201,149,42,.4);transition:all var(--t);width:100%;max-width:320px;align-self:center;}
 #v-next-btn:active{transform:scale(.97);box-shadow:none;}
+/* sc-name/sc-cur/sc-delta needed by voice mode */
+.sc-name{font-family:'Playfair Display',serif;font-size:clamp(15px,4.5vw,20px);font-weight:700;text-align:center;letter-spacing:1px;}
+.sc-cur{font-size:13px;letter-spacing:3px;text-transform:uppercase;text-align:center;color:var(--ivory-dim);margin-top:-6px;}
+.sc-delta{font-family:'Playfair Display',serif;font-size:38px;font-weight:900;text-align:center;line-height:1;}
 
 /* ── SCROLL HINT ── */
 #scroll-hint{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);font-size:9px;letter-spacing:3px;color:rgba(201,149,42,.3);pointer-events:none;text-transform:uppercase;animation:breathe 3s infinite;z-index:5;}
@@ -160,20 +110,16 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
 .m-count-btn,.m-mode-btn{font-family:'Crimson Pro',serif;font-size:13px;font-weight:600;padding:8px 18px;border-radius:20px;border:1.5px solid var(--brass-dim);background:transparent;color:var(--ivory-dim);cursor:pointer;-webkit-appearance:none;transition:all var(--t);letter-spacing:1px;}
 .m-count-btn.active,.m-mode-btn.active{background:var(--brass);border-color:var(--brass);color:var(--felt-dark);font-weight:700;}
 .p-name-list{display:flex;flex-direction:column;gap:10px;}
-
-/* Player name row — name input + color swatch button */
 .p-name-row{display:flex;align-items:center;gap:8px;}
 .p-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
 .p-input{flex:1;font-family:'Crimson Pro',serif;font-size:15px;padding:10px 14px;border-radius:8px;border:1.5px solid rgba(201,149,42,.2);background:rgba(255,255,255,.05);color:var(--ivory);outline:none;-webkit-appearance:none;transition:border-color var(--t);}
 .p-input:focus{border-color:var(--brass);}
 .p-input::placeholder{color:var(--ivory-faint);}
-
-/* Color picker swatch button in menu row
-   Unity: ColorSwatchButton with onClick → open ColorPickerPanel */
-.p-color-btn{flex-shrink:0;width:36px;height:36px;border-radius:8px;border:2px solid rgba(255,255,255,.25);cursor:pointer;-webkit-appearance:none;transition:transform .15s ease,border-color .2s ease;position:relative;}
+.p-color-btn{flex-shrink:0;width:36px;height:36px;border-radius:8px;border:2px solid rgba(255,255,255,.25);cursor:pointer;-webkit-appearance:none;transition:transform .15s ease,border-color .2s ease;}
 .p-color-btn:active{transform:scale(.9);}
 .p-color-btn:hover{border-color:rgba(255,255,255,.6);}
-
+/* 4-player team badge in name list */
+.p-team-badge{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ivory-faint);padding:2px 0 0 14px;font-family:'Crimson Pro',serif;}
 .m-actions{display:flex;gap:12px;flex-wrap:wrap;}
 .m-action{font-family:'Playfair Display',serif;font-size:13px;font-weight:700;padding:13px 22px;border-radius:var(--radius);cursor:pointer;-webkit-appearance:none;letter-spacing:1px;transition:all var(--t);flex:1;text-align:center;}
 .m-start{background:var(--brass);border:none;color:var(--felt-dark);box-shadow:0 4px 20px rgba(201,149,42,.35);}
@@ -188,49 +134,16 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
 .tr-max{font-size:11px;letter-spacing:2px;color:var(--ivory-faint);text-transform:uppercase;}
 .m-round{font-family:'Crimson Pro',serif;font-size:13px;letter-spacing:4px;color:var(--brass-dim);text-transform:uppercase;}
 
-/* ── COLOR PICKER MODAL ──
-   Unity: ColorPickerPanel Canvas, SetActive(true) on swatch tap
-   Dimmed backdrop + centered tile grid */
-#color-picker-modal{
-  display:none;position:fixed;inset:0;z-index:300;
-  background:rgba(0,0,0,.78);
-  align-items:center;justify-content:center;
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-}
+/* ── COLOR PICKER MODAL ── */
+#color-picker-modal{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.78);align-items:center;justify-content:center;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
 #color-picker-modal.active{display:flex;}
-.cp-panel{
-  background:#1a0e04;
-  border:1.5px solid rgba(201,149,42,.4);
-  border-radius:18px;
-  padding:22px 18px 18px;
-  width:min(320px,88vw);
-  display:flex;flex-direction:column;gap:16px;
-  box-shadow:0 20px 60px rgba(0,0,0,.7);
-}
+.cp-panel{background:#1a0e04;border:1.5px solid rgba(201,149,42,.4);border-radius:18px;padding:22px 18px 18px;width:min(320px,88vw);display:flex;flex-direction:column;gap:16px;box-shadow:0 20px 60px rgba(0,0,0,.7);}
 .cp-title{font-family:'Playfair Display',serif;font-size:13px;font-weight:700;letter-spacing:3px;color:var(--brass);text-transform:uppercase;text-align:center;}
-.cp-grid{
-  display:grid;
-  grid-template-columns:repeat(5,1fr);
-  gap:10px;
-}
-/* Each color tile — Unity: ColorTile prefab with Image + Button */
-.cp-tile{
-  aspect-ratio:1;border-radius:10px;
-  border:2px solid rgba(255,255,255,.15);
-  cursor:pointer;-webkit-appearance:none;
-  transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;
-  position:relative;
-}
+.cp-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+.cp-tile{aspect-ratio:1;border-radius:10px;border:2px solid rgba(255,255,255,.15);cursor:pointer;-webkit-appearance:none;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;position:relative;}
 .cp-tile:active{transform:scale(.88);}
 .cp-tile.selected{border-color:rgba(255,255,255,.9);box-shadow:0 0 12px rgba(255,255,255,.4);}
-/* Cancel button */
-.cp-cancel{
-  font-family:'Crimson Pro',serif;font-size:13px;font-weight:600;
-  letter-spacing:2px;text-transform:uppercase;
-  padding:10px;border-radius:10px;border:1px solid rgba(255,74,74,.35);
-  background:transparent;color:rgba(255,100,100,.7);
-  cursor:pointer;-webkit-appearance:none;text-align:center;
-}
+.cp-cancel{font-family:'Crimson Pro',serif;font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:10px;border-radius:10px;border:1px solid rgba(255,74,74,.35);background:transparent;color:rgba(255,100,100,.7);cursor:pointer;-webkit-appearance:none;text-align:center;}
 .cp-cancel:active{background:rgba(255,74,74,.1);}
 
 /* ── PAUSE OVERLAY ── */
@@ -243,52 +156,44 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
 /* ── WIN OVERLAY ── */
 #win-overlay{display:none;position:fixed;inset:0;z-index:200;flex-direction:column;align-items:center;justify-content:center;gap:16px;cursor:pointer;}
 #win-overlay.active{display:flex;animation:winFade 1.2s ease forwards;}
-/* WIN SCREEN ORDER (top→bottom): suits · player name · "Wins the Game!" · score · tap hint */
 .wo-suits{font-size:36px;letter-spacing:20px;animation:winIn 1.4s ease .3s both;}
-.wo-name{font-family:'Playfair Display',serif;font-size:clamp(32px,12vw,58px);font-weight:900;text-align:center;text-shadow:0 0 60px currentColor;animation:winPop .8s cubic-bezier(.34,1.56,.64,1) .6s both;line-height:1.1;}
+.wo-name{font-family:'Playfair Display',serif;font-size:clamp(28px,10vw,52px);font-weight:900;text-align:center;text-shadow:0 0 60px currentColor;animation:winPop .8s cubic-bezier(.34,1.56,.64,1) .6s both;line-height:1.15;padding:0 12px;}
 .wo-label{font-size:14px;letter-spacing:6px;color:var(--ivory-dim);text-transform:uppercase;animation:winIn 1s ease 1s both;}
 .wo-score{font-size:14px;letter-spacing:4px;color:var(--ivory-dim);text-transform:uppercase;animation:winIn 1s ease 1.3s both;}
 .wo-tap{font-size:11px;letter-spacing:4px;color:var(--ivory-faint);text-transform:uppercase;margin-top:12px;animation:breathe 2s ease 2s infinite;}
 
 /* ── PEG ANIMATION ── */
-.peg-el,.peg-shadow,.peg-shine,.peg-lbl{
-  transition:cx .55s cubic-bezier(.34,1.2,.64,1),cy .55s cubic-bezier(.34,1.2,.64,1),
-             x  .55s cubic-bezier(.34,1.2,.64,1),y  .55s cubic-bezier(.34,1.2,.64,1);
-}
+.peg-el,.peg-shadow,.peg-shine,.peg-lbl{transition:cx .55s cubic-bezier(.34,1.2,.64,1),cy .55s cubic-bezier(.34,1.2,.64,1),x .55s cubic-bezier(.34,1.2,.64,1),y .55s cubic-bezier(.34,1.2,.64,1);}
 </style>
 </head>
 <body>
 
-<!-- ══ PAUSE OVERLAY ══ -->
+<!-- PAUSE OVERLAY -->
 <div id="pause-overlay">
   <div class="po-suits">♠ ♥ ♦ ♣</div>
   <div class="po-title">Paused</div>
   <div class="po-hint">Tap anywhere to resume</div>
 </div>
 
-<!-- ══ WIN OVERLAY ══
-     Order: suits → player name → "Wins the Game!" → score → tap hint
-     Unity: WinScreen Canvas elements in this vertical order -->
+<!-- WIN OVERLAY — name first, then "Wins the Game!" -->
 <div id="win-overlay">
-  <div class="wo-suits"  id="winSuits">♠ ♥ ♦ ♣</div>
-  <div class="wo-name"   id="winName">Player 1</div>
-  <div class="wo-label">Wins the Game!</div>
-  <div class="wo-score"  id="winScore">121 Points</div>
+  <div class="wo-suits" id="winSuits">♠ ♥ ♦ ♣</div>
+  <div class="wo-name"  id="winName">Player 1</div>
+  <div class="wo-label" id="winLabel">Wins the Game!</div>
+  <div class="wo-score" id="winScore">121 Points</div>
   <div class="wo-tap">Tap to play again</div>
 </div>
 
-<!-- ══ COLOR PICKER MODAL ══
-     Unity: ColorPickerPanel Canvas, shown/hidden via SetActive
-     Stores which player index triggered it in cpTargetPlayer -->
+<!-- COLOR PICKER MODAL -->
 <div id="color-picker-modal">
   <div class="cp-panel">
     <div class="cp-title" id="cpTitle">Choose Colour</div>
-    <div class="cp-grid" id="cpGrid"></div>
+    <div class="cp-grid"  id="cpGrid"></div>
     <button class="cp-cancel" onclick="closeColorPicker()">Cancel</button>
   </div>
 </div>
 
-<!-- ══ SPLASH SCREEN ══ -->
+<!-- SPLASH -->
 <div id="splash-screen">
   <div class="splash-logo">
     <div class="splash-suits">♠ ♥ ♦ ♣</div>
@@ -298,19 +203,21 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
   <div class="splash-hint">▼ Scroll down to set up your game ▼</div>
 </div>
 
-<!-- ══ BOARD SCREEN ══ -->
+<!-- BOARD SCREEN -->
 <div id="board-screen">
   <div class="app-header">
     <div class="app-title">Cribbage Companion</div>
     <button class="pause-btn" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
   </div>
 
-  <!-- BOARD SVG — rebuilt by buildBoardSVG() on start/resize/orientation
-       Snake path border: per-player coloured polyline drawn under holes.
-       Unity: LineRenderer per player column with player Color. -->
-  <div id="board-wrap">
-    <div id="board-svg-container"></div>
-  </div>
+  <!--
+    BOARD SVG — rebuilt by buildBoardSVG()
+    2p/3p: one column per player (unchanged)
+    4p: TWO columns — col 0 = Team A (P1+P3), col 1 = Team B (P2+P4)
+    Both partners' scores advance the same column's pegs.
+    Unity: BoardManager.RebuildBoard() — numBoardCols = is4p ? 2 : numPlayers
+  -->
+  <div id="board-wrap"><div id="board-svg-container"></div></div>
 
   <div id="status-panel">
     <div class="status-div"></div>
@@ -320,21 +227,15 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
   </div>
 
   <div id="scoring-zone">
-    <!-- START ROUND button (shown between rounds)
-         Unity: StartRoundButton, hidden once round is active -->
     <button id="start-round-btn" onclick="onStartRound()">Start Round</button>
 
-    <!-- MANUAL: simultaneous per-player scoring panels (shown during round)
-         One mini-panel per player, all visible at once.
-         Buttons: +2, +4, +10, -1  (most common cribbage increments)
-         Unity: PlayerScoringRow[] instantiated per numPlayers -->
+    <!-- MANUAL simultaneous scoring — all players at once -->
     <div id="all-players-panel" style="display:none;flex-direction:column;gap:10px;">
       <div id="per-player-rows"></div>
-      <!-- Next Round button — always visible once round started -->
       <button id="next-round-btn" onclick="onNextRound()">Next Round ▶</button>
     </div>
 
-    <!-- VOICE scoring panel (unchanged) -->
+    <!-- VOICE scoring — sequential per player -->
     <div id="voice-input-panel">
       <div class="sc-name"  id="vScName">Player 1</div>
       <div class="sc-cur"   id="vScCur">Current score: 0</div>
@@ -348,12 +249,11 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
       <button id="v-next-btn" onclick="onVoiceNextPlayer()">Next Player</button>
     </div>
   </div><!-- end scoring-zone -->
-
 </div><!-- end board-screen -->
 
 <div id="scroll-hint">▼ menu below ▼</div>
 
-<!-- ══ MENU ══ -->
+<!-- MENU -->
 <div id="menu">
   <div class="m-round" id="menuRound">Round 0 · Game not started</div>
   <div>
@@ -361,7 +261,7 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
     <div class="m-row">
       <button class="m-count-btn active" data-n="2" onclick="setPlayerCount(2)">2 Players</button>
       <button class="m-count-btn" data-n="3" onclick="setPlayerCount(3)">3 Players</button>
-      <button class="m-count-btn" data-n="4" onclick="setPlayerCount(4)">4 Players</button>
+      <button class="m-count-btn" data-n="4" onclick="setPlayerCount(4)">4 Players (Teams)</button>
     </div>
   </div>
   <div>
@@ -389,57 +289,74 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
 'use strict';
 
 /* ══════════════════════════════════════════════
-   CONSTANTS — Unity: public static class C
+   CONSTANTS
    ══════════════════════════════════════════════ */
 var MAX_SCORE       = 121;
 var PEGS_PER_PLAYER = 2;
 var HOLES_PER_ROW   = 10;
 var NUM_ROWS        = 12;
 
-var SCORE_BTNS = [
-  {l:'+2',v:2},{l:'+4',v:4},{l:'+6',v:6},{l:'+8',v:8},
-  {l:'+10',v:10},{l:'+12',v:12},{l:'-2',v:-2},{l:'-1',v:-1}
+var MANUAL_BTNS = [
+  {l:'+2',v:2},{l:'+4',v:4},{l:'+10',v:10},{l:'−1',v:-1}
 ];
+var SCORE_BTNS = MANUAL_BTNS; // alias used by voice mode
 
 /* ══════════════════════════════════════════════
    PLAYER COLORS
-   PC[]  = current colors (runtime mutable by color picker)
-   PCD[] = dim rgba versions (recalculated when color changes)
-   DEFAULT_PC[] = original defaults
-   ALL_COLORS[] = full palette for color picker
-
-   Unity: Color[] PlayerColors (ScriptableObject, mutable)
+   PC[0..3] — runtime mutable.
+   In 4p mode: Team A = PC[0], Team B = PC[1].
+   PC[2] and PC[3] are kept but not shown on board in 4p.
    ══════════════════════════════════════════════ */
 var DEFAULT_PC = ['#4a9eff','#ff4a4a','#4adb7a','#ffd84a'];
-var PC  = DEFAULT_PC.slice();   // mutable per-game
+var PC = DEFAULT_PC.slice();
 
-/* All available player colors (10 swatches)
-   Unity: static Color[] ColorPalette */
 var ALL_COLORS = [
-  '#4a9eff',   // Blue (default P1)
-  '#ff4a4a',   // Red  (default P2)
-  '#4adb7a',   // Green (default P3)
-  '#ffd84a',   // Yellow (default P4)
-  '#ffffff',   // White
-  '#222222',   // Black
-  '#00e5ff',   // Cyan
-  '#ff8c00',   // Orange
-  '#ff69b4',   // Pink
-  '#9b59ff',   // Purple
+  '#4a9eff','#ff4a4a','#4adb7a','#ffd84a',
+  '#ffffff','#222222','#00e5ff','#ff8c00','#ff69b4','#9b59ff'
 ];
 
-/* Compute rgba dim from hex color
-   Unity: Color.Lerp(playerColor, Color.clear, 0.72f) */
 function hexToDim(hex) {
-  var r=parseInt(hex.slice(1,3),16);
-  var g=parseInt(hex.slice(3,5),16);
-  var b=parseInt(hex.slice(5,7),16);
+  var r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
   return 'rgba('+r+','+g+','+b+',.28)';
 }
 function getPCD(p){ return hexToDim(PC[p]); }
 
 /* ══════════════════════════════════════════════
-   GAME STATE — Unity: GameState.cs
+   4-PLAYER TEAM HELPERS
+   Unity: TeamManager.cs
+
+   Board layout in 4p mode (Option A):
+     2 columns drawn on SVG — col 0 = Team A, col 1 = Team B.
+     G.pegPos[0] = Team A pegs, G.pegPos[1] = Team B pegs.
+     G.scores[0] = G.scores[2] = Team A score (both always equal).
+     G.scores[1] = G.scores[3] = Team B score (both always equal).
+
+   teamOf(playerIdx)   → 0 (Team A: P1,P3) or 1 (Team B: P2,P4)
+   boardCols()         → 2 in 4p, else G.numPlayers
+   teamColor(t)        → PC[0] for Team A, PC[1] for Team B
+   teamDisplayName(t)  → "Alice & Charlie" style
+   boardColOf(playerIdx) → which SVG column index the player maps to
+   ══════════════════════════════════════════════ */
+function is4p()                { return G.numPlayers === 4; }
+function teamOf(idx)           { return is4p() ? (idx % 2) : idx; }
+function boardCols()           { return is4p() ? 2 : G.numPlayers; }
+function boardColOf(idx)       { return is4p() ? teamOf(idx) : idx; }
+function teamColor(t)          { return PC[t]; }
+function teamScore(t)          { return G.scores[t * 2]; }
+
+function teamDisplayName(t) {
+  if (!is4p()) return G.names[t];
+  return G.names[t === 0 ? 0 : 1] + ' & ' + G.names[t === 0 ? 2 : 3];
+}
+
+/* ══════════════════════════════════════════════
+   GAME STATE
+   In 4p mode:
+     pegPos[0] = Team A shared track  (front/back)
+     pegPos[1] = Team B shared track  (front/back)
+     pegPos[2],[3] = unused / kept at 0
+     scores[0] = scores[2] = Team A score
+     scores[1] = scores[3] = Team B score
    ══════════════════════════════════════════════ */
 var G = {
   started:false, paused:false, numPlayers:2, mode:'manual',
@@ -453,267 +370,152 @@ var G = {
 };
 
 /* ══════════════════════════════════════════════
-   COLOR PICKER STATE — Unity: ColorPickerManager.cs
+   COLOR PICKER
    ══════════════════════════════════════════════ */
-var cpTargetPlayer = 0;   // which player index the picker is editing
+var cpTargetPlayer = 0;
 
 function openColorPicker(playerIdx) {
   cpTargetPlayer = playerIdx;
-  document.getElementById('cpTitle').textContent =
-    'Colour for ' + G.names[playerIdx];
-
-  /* Build tile grid */
-  var grid = document.getElementById('cpGrid');
-  grid.innerHTML = '';
+  document.getElementById('cpTitle').textContent = 'Colour for ' + G.names[playerIdx];
+  var grid = document.getElementById('cpGrid'); grid.innerHTML = '';
   ALL_COLORS.forEach(function(col) {
     var tile = document.createElement('button');
     tile.className = 'cp-tile' + (col === PC[playerIdx] ? ' selected' : '');
     tile.style.background = col;
-    /* Checkmark on selected tile */
     if (col === PC[playerIdx]) {
-      /* Contrast checkmark — black on light colors, white on dark */
-      var brightness = parseInt(col.slice(1,3),16)*0.299
-                     + parseInt(col.slice(3,5),16)*0.587
-                     + parseInt(col.slice(5,7),16)*0.114;
-      tile.innerHTML = '<span style="font-size:18px;color:'+(brightness>140?'#000':'#fff')+'">✓</span>';
+      var br = parseInt(col.slice(1,3),16)*0.299 + parseInt(col.slice(3,5),16)*0.587 + parseInt(col.slice(5,7),16)*0.114;
+      tile.innerHTML = '<span style="font-size:18px;color:'+(br>140?'#000':'#fff')+'">✓</span>';
       tile.style.display='flex'; tile.style.alignItems='center'; tile.style.justifyContent='center';
     }
-    tile.addEventListener('click', function() {
-      selectColor(playerIdx, col);
-    });
+    tile.addEventListener('click', function(){ selectColor(playerIdx, col); });
     grid.appendChild(tile);
   });
-
   document.getElementById('color-picker-modal').classList.add('active');
 }
-
 function selectColor(playerIdx, col) {
   PC[playerIdx] = col;
   closeColorPicker();
-  /* Refresh name inputs to update dot + swatch button */
-  buildNameInputs();
-  updateTrackerGrid();
-  /* If game is running, rebuild board with new color */
+  buildNameInputs(); updateTrackerGrid();
   if (G.started) { buildBoardSVG(); updatePegs(); }
 }
-
 function closeColorPicker() {
   document.getElementById('color-picker-modal').classList.remove('active');
 }
-
-/* Tap outside panel closes it */
 document.getElementById('color-picker-modal').addEventListener('click', function(e) {
   if (e.target === this) closeColorPicker();
 });
 
 /* ══════════════════════════════════════════════
-   VOICE SCORING — Web Speech API
-   Unity: Microphone.Start() + STT service (Google/Apple)
+   VOICE SCORING
    ══════════════════════════════════════════════ */
-var micRecognition = null;   // SpeechRecognition instance
-var micActive      = false;
+var micRecognition = null, micActive = false;
 
 function initSpeechRecognition() {
-  /* Feature detect — Unity: check platform STT availability */
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return null;
   var r = new SR();
-  r.continuous      = false;
-  r.interimResults  = false;
-  r.lang            = 'en-US';
-  r.maxAlternatives = 1;
-
-  r.onresult = function(event) {
-    var transcript = event.results[0][0].transcript;
-    applyVoiceTranscript(transcript);
-  };
-  r.onerror = function(e) {
-    setVoiceStatus('Error: ' + e.error + '. Try again.');
-    setMicOff();
-  };
-  r.onend = function() {
-    setMicOff();
-  };
+  r.continuous=false; r.interimResults=false; r.lang='en-US'; r.maxAlternatives=1;
+  r.onresult = function(e){ applyVoiceTranscript(e.results[0][0].transcript); };
+  r.onerror  = function(e){ setVoiceStatus('Error: '+e.error+'. Try again.'); setMicOff(); };
+  r.onend    = function(){ setMicOff(); };
   return r;
 }
-
 function toggleMic() {
   if (!micActive) {
-    /* Start recording */
     if (!micRecognition) micRecognition = initSpeechRecognition();
-    if (!micRecognition) {
-      setVoiceStatus('Voice not supported on this browser');
-      return;
-    }
-    try {
-      micRecognition.start();
-      micActive = true;
-      document.getElementById('mic-btn').classList.add('recording');
-      setVoiceStatus('🔴 Listening… say a number');
-    } catch(e) {
-      setVoiceStatus('Mic error — try again');
-    }
-  } else {
-    /* Stop recording — onend fires → setMicOff + result fires → applyVoiceTranscript */
-    micRecognition.stop();
-    setMicOff();
-    setVoiceStatus('Processing…');
-  }
+    if (!micRecognition) { setVoiceStatus('Voice not supported'); return; }
+    try { micRecognition.start(); micActive=true; document.getElementById('mic-btn').classList.add('recording'); setVoiceStatus('🔴 Listening… say a number'); }
+    catch(e){ setVoiceStatus('Mic error — try again'); }
+  } else { micRecognition.stop(); setMicOff(); setVoiceStatus('Processing…'); }
 }
-
-function setMicOff() {
-  micActive = false;
-  document.getElementById('mic-btn').classList.remove('recording');
-}
-
-/* Extract the first number from transcript and apply it as score delta
-   Examples: "twelve points" → 12, "award me 8 points" → 8, "five" → 5
-   Unity: regex parse on STT result string */
+function setMicOff(){ micActive=false; document.getElementById('mic-btn').classList.remove('recording'); }
 function applyVoiceTranscript(transcript) {
-  /* Try digit string first, then word-to-number map */
-  var wordNums = {
-    'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,
-    'eight':8,'nine':9,'ten':10,'eleven':11,'twelve':12,'thirteen':13,
-    'fourteen':14,'fifteen':15,'sixteen':16,'seventeen':17,'eighteen':18,
-    'nineteen':19,'twenty':20,'twenty-one':21,'twenty one':21,
-    'twenty-two':22,'twenty two':22,'twenty-three':23,'twenty three':23,
-    'twenty-four':24,'twenty four':24,'twenty-five':25,'twenty five':25,
-    'twenty-six':26,'twenty six':26,'twenty-seven':27,'twenty seven':27,
-    'twenty-eight':28,'twenty eight':28,'twenty-nine':29,'twenty nine':29
-  };
-
-  var lower = transcript.toLowerCase().trim();
-  var found = null;
-
-  /* 1. Digit match (handles "12 points", "award 8", etc.) */
-  var digitMatch = lower.match(/\b(\d+)\b/);
-  if (digitMatch) found = parseInt(digitMatch[1], 10);
-
-  /* 2. Word match */
-  if (found === null) {
-    for (var word in wordNums) {
-      if (lower.indexOf(word) !== -1) { found = wordNums[word]; break; }
-    }
-  }
-
-  if (found !== null && found >= 0) {
-    /* Apply as absolute delta for this player (replaces any previous voice input) */
-    G.pendingDelta = 0;
-    vNudge(found);
-    setVoiceStatus('Heard: "' + transcript + '" → +' + found + ' pts');
-  } else {
-    setVoiceStatus('"' + transcript + '" — no number found. Try again.');
-  }
+  var wordNums = {'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,'ten':10,'eleven':11,'twelve':12,'thirteen':13,'fourteen':14,'fifteen':15,'sixteen':16,'seventeen':17,'eighteen':18,'nineteen':19,'twenty':20,'twenty-one':21,'twenty one':21,'twenty-two':22,'twenty two':22,'twenty-three':23,'twenty three':23,'twenty-four':24,'twenty four':24,'twenty-five':25,'twenty five':25,'twenty-six':26,'twenty six':26,'twenty-seven':27,'twenty seven':27,'twenty-eight':28,'twenty eight':28,'twenty-nine':29,'twenty nine':29};
+  var lower=transcript.toLowerCase().trim(), found=null;
+  var dm=lower.match(/\b(\d+)\b/); if(dm) found=parseInt(dm[1],10);
+  if (found===null) { for(var w in wordNums){ if(lower.indexOf(w)!==-1){found=wordNums[w];break;} } }
+  if (found!==null && found>=0) { G.pendingDelta=0; vNudge(found); setVoiceStatus('Heard: "'+transcript+'" → +'+found+' pts'); }
+  else setVoiceStatus('"'+transcript+'" — no number found. Try again.');
 }
-
-function setVoiceStatus(msg) {
-  var el = document.getElementById('voiceStatus');
-  if (el) el.textContent = msg;
-}
-
+function setVoiceStatus(msg){ var el=document.getElementById('voiceStatus'); if(el) el.textContent=msg; }
 function vNudge(v) {
+  /* In voice mode G.scoringPlayer is the player index.
+     In 4p mode, we cap against team score not player score. */
+  var teamScoreNow = is4p() ? teamScore(teamOf(G.scoringPlayer)) : G.scores[G.scoringPlayer];
   G.pendingDelta += v;
-  var proj = G.scores[G.scoringPlayer] + G.pendingDelta;
-  if (proj < 0)         G.pendingDelta = -G.scores[G.scoringPlayer];
-  if (proj > MAX_SCORE) G.pendingDelta = MAX_SCORE - G.scores[G.scoringPlayer];
+  var proj = teamScoreNow + G.pendingDelta;
+  if (proj < 0)         G.pendingDelta = -teamScoreNow;
+  if (proj > MAX_SCORE) G.pendingDelta = MAX_SCORE - teamScoreNow;
   refreshVoiceUI();
 }
-
 function refreshVoiceUI() {
-  var p   = G.scoringPlayer;
-  var col = PC[p];
-  document.getElementById('vScName').textContent  = G.names[p] + "'s Score";
-  document.getElementById('vScName').style.color  = col;
-  document.getElementById('vScCur').textContent   = 'Current score: ' + G.scores[p];
-  var d = G.pendingDelta;
-  document.getElementById('vScDelta').textContent = (d>=0?'+':'') + d;
-  document.getElementById('vScDelta').style.color = col;
-  /* Color mini buttons */
-  var vm1 = document.getElementById('vMinus1');
-  var vp1 = document.getElementById('vPlus1');
-  if (vm1) { vm1.style.borderColor='rgba(255,100,100,.4)'; vm1.style.color='rgba(255,130,130,.85)'; }
-  if (vp1) { vp1.style.borderColor=col; vp1.style.color=col; vp1.style.background=hexToDim(PC[p]); }
-  /* Next button */
-  var nb = document.getElementById('v-next-btn');
-  if (nb) {
-    var isLast = (p === G.numPlayers-1);
-    nb.textContent = isLast ? 'Next Round ▶' : 'Next Player ▶';
-    nb.style.background = col; nb.style.color = '#061510';
-  }
+  var p=G.scoringPlayer;
+  /* In 4p show team name + team score */
+  var displayName = is4p() ? (G.names[p] + ' (' + (teamOf(p)===0?'Team A':'Team B') + ')') : G.names[p];
+  var teamScoreNow = is4p() ? teamScore(teamOf(p)) : G.scores[p];
+  var col = is4p() ? teamColor(teamOf(p)) : PC[p];
+  document.getElementById('vScName').textContent=displayName+"'s Score"; document.getElementById('vScName').style.color=col;
+  document.getElementById('vScCur').textContent='Team score: '+teamScoreNow;
+  var d=G.pendingDelta; document.getElementById('vScDelta').textContent=(d>=0?'+':'')+d; document.getElementById('vScDelta').style.color=col;
+  var vm1=document.getElementById('vMinus1'),vp1=document.getElementById('vPlus1');
+  if(vm1){vm1.style.borderColor='rgba(255,100,100,.4)';vm1.style.color='rgba(255,130,130,.85)';}
+  if(vp1){vp1.style.borderColor=col;vp1.style.color=col;vp1.style.background=hexToDim(col);}
+  var nb=document.getElementById('v-next-btn');
+  if(nb){ nb.textContent=(p===G.numPlayers-1)?'Next Round ▶':'Next Player ▶'; nb.style.background=col; nb.style.color='#061510'; }
 }
 
 /* ══════════════════════════════════════════════
-   BOARD GEOMETRY — Unity: BoardLayout.cs
+   BOARD GEOMETRY
+   boardCols() columns are drawn: 2 in 4p, else numPlayers.
    ══════════════════════════════════════════════ */
 var B = {};
 
-function buildGeometry(svgW, svgH, n) {
-  var padX = Math.max(6, svgW * 0.03);
-  var padY = Math.max(6, svgH * 0.03);
-  var innerW = svgW - padX*2;
-  var innerH = svgH - padY*2;
-  var colGap = Math.max(3, svgW * 0.012);
-  var colW   = (innerW - (n-1)*colGap) / n;
-  var startZoneH = Math.max(14, innerH * 0.065);
-  var winZoneH   = Math.max(12, innerH * 0.055);
-  var playH      = innerH - startZoneH - winZoneH;
-  var rowH       = playH / NUM_ROWS;
-  var holeSpacing= colW / (HOLES_PER_ROW + 0.5);
-  var holeR = Math.max(4, Math.min(holeSpacing * 0.38, rowH * 0.3, 10));
-  var pegR  = Math.max(holeR * 0.75, holeR - 1);
-
-  B = { svgW, svgH, padX, padY, innerW, innerH,
-        n, colW, colGap, rowH, holeSpacing,
-        holeR, pegR, startZoneH, winZoneH, playH,
-        holePos: [] };
-
-  for (var p=0; p<n; p++) {
-    var colLeft = padX + p*(colW+colGap);
-    var colCX   = colLeft + colW*0.5;
-    B.holePos[p] = [];
-    /* Hole 0 = START */
-    B.holePos[p][0] = { x:colCX, y: padY+winZoneH+playH+startZoneH*0.55 };
-    /* Holes 1..120 — snaking rows */
-    for (var h=1; h<=120; h++) {
-      var row  = Math.floor((h-1)/HOLES_PER_ROW);
-      var posR = (h-1) % HOLES_PER_ROW;
-      var ltr  = (row%2===0);
-      var rowCY = padY+winZoneH+playH-(row+0.5)*rowH;
-      var margin= (colW - HOLES_PER_ROW*holeSpacing)*0.5;
-      var xOff  = margin + (posR+0.5)*holeSpacing;
-      var hx    = ltr ? (colLeft+xOff) : (colLeft+colW-xOff);
-      B.holePos[p][h] = { x:hx, y:rowCY };
+function buildGeometry(svgW, svgH, cols) {
+  var padX=Math.max(6,svgW*0.03), padY=Math.max(6,svgH*0.03);
+  var innerW=svgW-padX*2, innerH=svgH-padY*2;
+  var colGap=Math.max(3,svgW*0.012);
+  var colW=(innerW-(cols-1)*colGap)/cols;
+  var startZoneH=Math.max(14,innerH*0.065), winZoneH=Math.max(12,innerH*0.055);
+  var playH=innerH-startZoneH-winZoneH, rowH=playH/NUM_ROWS;
+  var holeSpacing=colW/(HOLES_PER_ROW+0.5);
+  var holeR=Math.max(4,Math.min(holeSpacing*0.38,rowH*0.3,10));
+  var pegR=Math.max(holeR*0.75,holeR-1);
+  B={svgW,svgH,padX,padY,innerW,innerH,cols,colW,colGap,rowH,holeSpacing,holeR,pegR,startZoneH,winZoneH,playH,holePos:[]};
+  for (var c=0;c<cols;c++) {
+    var colLeft=padX+c*(colW+colGap), colCX=colLeft+colW*0.5;
+    B.holePos[c]=[];
+    B.holePos[c][0]={x:colCX,y:padY+winZoneH+playH+startZoneH*0.55};
+    for (var h=1;h<=120;h++) {
+      var row=Math.floor((h-1)/HOLES_PER_ROW), posR=(h-1)%HOLES_PER_ROW, ltr=(row%2===0);
+      var rowCY=padY+winZoneH+playH-(row+0.5)*rowH;
+      var margin=(colW-HOLES_PER_ROW*holeSpacing)*0.5;
+      var xOff=margin+(posR+0.5)*holeSpacing;
+      B.holePos[c][h]={x:ltr?(colLeft+xOff):(colLeft+colW-xOff),y:rowCY};
     }
-    /* Hole 121 = WIN */
-    B.holePos[p][MAX_SCORE] = { x:colCX, y: padY+winZoneH*0.45 };
+    B.holePos[c][MAX_SCORE]={x:colCX,y:padY+winZoneH*0.45};
   }
 }
 
 /* ══════════════════════════════════════════════
    BUILD BOARD SVG
-   Unity: BoardManager.DrawBoard()
+   cols = boardCols() — 2 in 4p, else numPlayers.
+   Column labels: in 4p show "A" / "B" team label + both player initials.
    ══════════════════════════════════════════════ */
 function buildBoardSVG() {
-  var cont = document.getElementById('board-svg-container');
-  var n    = G.numPlayers;
-  var cW   = cont.clientWidth || 360;
-  var land = window.innerWidth > window.innerHeight;
-  var svgW, svgH;
-  if (land) {
-    svgW = cW;
-    svgH = Math.max(100, Math.round(Math.min(window.innerHeight*0.5, cW*0.28)));
-  } else {
-    svgW = cW;
-    var rowsTotal = NUM_ROWS + 1.8;
-    var colsEff   = HOLES_PER_ROW / n;
-    svgH = Math.round(svgW * (rowsTotal/colsEff));
-    svgH = Math.min(svgH, Math.round(window.innerHeight*0.78));
-    svgH = Math.max(svgH, 300);
+  var cont=document.getElementById('board-svg-container');
+  var cols=boardCols(), cW=cont.clientWidth||360, land=window.innerWidth>window.innerHeight;
+  var svgW,svgH;
+  if (land) { svgW=cW; svgH=Math.max(100,Math.round(Math.min(window.innerHeight*0.5,cW*0.28))); }
+  else {
+    svgW=cW;
+    var rowsTotal=NUM_ROWS+1.8, colsEff=HOLES_PER_ROW/cols;
+    svgH=Math.round(svgW*(rowsTotal/colsEff));
+    svgH=Math.min(svgH,Math.round(window.innerHeight*0.78));
+    svgH=Math.max(svgH,300);
   }
+  buildGeometry(svgW,svgH,cols);
 
-  buildGeometry(svgW, svgH, n);
-
-  var s = [];
+  var s=[];
   s.push('<svg viewBox="0 0 '+svgW+' '+svgH+'" xmlns="http://www.w3.org/2000/svg" overflow="visible">');
 
   /* DEFS */
@@ -724,160 +526,153 @@ function buildBoardSVG() {
   });
   s.push('</linearGradient>');
   s.push('<radialGradient id="fg" cx="50%" cy="45%" r="60%">');
-  s.push('<stop offset="0%" stop-color="#143f28"/>');
-  s.push('<stop offset="100%" stop-color="#072010"/>');
-  s.push('</radialGradient>');
-  s.push('</defs>');
+  s.push('<stop offset="0%" stop-color="#143f28"/><stop offset="100%" stop-color="#072010"/>');
+  s.push('</radialGradient></defs>');
 
   /* Wood frame */
   s.push('<rect x="0" y="0" width="'+svgW+'" height="'+svgH+'" rx="16" fill="url(#wg)"/>');
   s.push('<rect x="2" y="2" width="'+(svgW-4)+'" height="'+(svgH-4)+'" rx="14" fill="none" stroke="#c9952a" stroke-width="1.8" opacity=".65"/>');
   s.push('<rect x="5" y="5" width="'+(svgW-10)+'" height="'+(svgH-10)+'" rx="12" fill="none" stroke="#c9952a" stroke-width=".5" opacity=".3"/>');
 
-  /* Felt surface */
-  var px=B.padX, py=B.padY;
+  /* Felt */
+  var px=B.padX,py=B.padY;
   s.push('<rect x="'+f(px)+'" y="'+f(py)+'" width="'+f(svgW-px*2)+'" height="'+f(svgH-py*2)+'" rx="10" fill="url(#fg)"/>');
-  for (var ty=py+4; ty<svgH-py-4; ty+=9)
+  for (var ty=py+4;ty<svgH-py-4;ty+=9)
     s.push('<line x1="'+f(px+3)+'" y1="'+f(ty)+'" x2="'+f(svgW-px-3)+'" y2="'+f(ty)+'" stroke="rgba(255,255,255,.018)" stroke-width=".5"/>');
 
-  /* Column backgrounds + stripes */
-  for (var p=0; p<n; p++) {
-    var cl = px + p*(B.colW+B.colGap);
-    s.push('<rect x="'+f(cl)+'" y="'+f(py+2)+'" width="'+f(B.colW)+'" height="'+f(svgH-py*2-4)+'" rx="7" fill="'+(p%2===0?'rgba(0,0,0,.13)':'rgba(0,0,0,.06)')+'"/>');
-    s.push('<rect x="'+f(cl)+'" y="'+f(py+10)+'" width="3.5" height="'+f(svgH-py*2-20)+'" rx="1.8" fill="'+PC[p]+'" opacity=".75"/>');
-    var colCX = cl + B.colW*0.5;
-    var init  = G.names[p].charAt(0).toUpperCase();
-    var initSz= Math.min(B.colW*0.24, 12);
-    s.push('<text x="'+f(colCX)+'" y="'+f(py-1)+'" text-anchor="middle" font-size="'+f(initSz)+'" fill="'+PC[p]+'" font-family="Georgia,serif" font-weight="bold" opacity=".85">'+init+'</text>');
+  /* Column backgrounds + colour stripe + header label */
+  for (var c=0;c<cols;c++) {
+    var cl=px+c*(B.colW+B.colGap);
+    var colColor = is4p() ? teamColor(c) : PC[c];
+    s.push('<rect x="'+f(cl)+'" y="'+f(py+2)+'" width="'+f(B.colW)+'" height="'+f(svgH-py*2-4)+'" rx="7" fill="'+(c%2===0?'rgba(0,0,0,.13)':'rgba(0,0,0,.06)')+'"/>');
+    s.push('<rect x="'+f(cl)+'" y="'+f(py+10)+'" width="3.5" height="'+f(svgH-py*2-20)+'" rx="1.8" fill="'+colColor+'" opacity=".75"/>');
+    var colCX=cl+B.colW*0.5;
+    var initSz=Math.min(B.colW*0.24,12);
+    var headerText;
+    if (is4p()) {
+      /* Show both partner initials e.g. "A · C" for Team A */
+      var p1idx=c===0?0:1, p2idx=c===0?2:3;
+      headerText = G.names[p1idx].charAt(0).toUpperCase()+' · '+G.names[p2idx].charAt(0).toUpperCase();
+    } else {
+      headerText = G.names[c].charAt(0).toUpperCase();
+    }
+    s.push('<text x="'+f(colCX)+'" y="'+f(py-1)+'" text-anchor="middle" font-size="'+f(initSz)+'" fill="'+colColor+'" font-family="Georgia,serif" font-weight="bold" opacity=".85">'+headerText+'</text>');
   }
 
   /* Column dividers */
-  for (var p=1; p<n; p++) {
-    var dx = px + p*(B.colW+B.colGap) - B.colGap*0.5;
+  for (var c=1;c<cols;c++) {
+    var dx=px+c*(B.colW+B.colGap)-B.colGap*0.5;
     s.push('<line x1="'+f(dx)+'" y1="'+f(py+4)+'" x2="'+f(dx)+'" y2="'+f(svgH-py-4)+'" stroke="rgba(201,149,42,.18)" stroke-width=".8" stroke-dasharray="3,6"/>');
   }
 
-  /* ── SNAKE PATH BORDER ──────────────────────────────────────────────
-     Single wide glow polyline per player at 25% opacity.
-     Drawn BEHIND holes so it acts as a visible track highlight.
-     Unity: LineRenderer per player, player color, opacity 0.25
-     ──────────────────────────────────────────────────────────────── */
-  for (var p=0; p<n; p++) {
-    var pts = [];
-    pts.push(B.holePos[p][0]);
-    for (var h=1; h<=120; h++) pts.push(B.holePos[p][h]);
-    pts.push(B.holePos[p][MAX_SCORE]);
-    var pStr = pts.map(function(hp){ return f(hp.x)+','+f(hp.y); }).join(' ');
-    s.push('<polyline points="'+pStr+'" fill="none"');
-    s.push(' stroke="'+PC[p]+'" stroke-width="'+f(B.holeR*2.8)+'"');
-    s.push(' stroke-linejoin="round" stroke-linecap="round" opacity=".25"/>');
+  /* Snake path glow — 25% opacity wide polyline per column */
+  for (var c=0;c<cols;c++) {
+    var colColor2 = is4p() ? teamColor(c) : PC[c];
+    var pts=[]; pts.push(B.holePos[c][0]);
+    for (var h=1;h<=120;h++) pts.push(B.holePos[c][h]);
+    pts.push(B.holePos[c][MAX_SCORE]);
+    var pStr=pts.map(function(hp){return f(hp.x)+','+f(hp.y);}).join(' ');
+    s.push('<polyline points="'+pStr+'" fill="none" stroke="'+colColor2+'" stroke-width="'+f(B.holeR*2.8)+'" stroke-linejoin="round" stroke-linecap="round" opacity=".25"/>');
   }
 
-  /* Snake connector arcs (between row end and next row start) */
-  for (var p=0; p<n; p++) {
-    var cl2 = px + p*(B.colW+B.colGap);
-    for (var row=0; row<NUM_ROWS-1; row++) {
-      var ltr  = (row%2===0);
-      var hEnd = row*HOLES_PER_ROW + HOLES_PER_ROW;
-      var hNxt = hEnd + 1;
-      if (hEnd>120||hNxt>120) continue;
-      var pe = B.holePos[p][hEnd];
-      var pn = B.holePos[p][hNxt];
-      if (!pe||!pn) continue;
-      var arcX = ltr ? (cl2+B.colW+B.colGap*0.1) : (cl2-B.colGap*0.1);
-      var midY = (pe.y+pn.y)*0.5;
-      s.push('<path d="M '+f(pe.x)+' '+f(pe.y)+' Q '+f(arcX)+' '+f(midY)+' '+f(pn.x)+' '+f(pn.y)+'"');
-      s.push(' fill="none" stroke="rgba(201,149,42,.2)" stroke-width="1"/>');
+  /* Snake connector arcs */
+  for (var c=0;c<cols;c++) {
+    var cl2=px+c*(B.colW+B.colGap);
+    for (var row=0;row<NUM_ROWS-1;row++) {
+      var ltr=(row%2===0), hEnd=row*HOLES_PER_ROW+HOLES_PER_ROW, hNxt=hEnd+1;
+      if(hEnd>120||hNxt>120) continue;
+      var pe=B.holePos[c][hEnd],pn=B.holePos[c][hNxt]; if(!pe||!pn) continue;
+      var arcX=ltr?(cl2+B.colW+B.colGap*0.1):(cl2-B.colGap*0.1), midY=(pe.y+pn.y)*0.5;
+      s.push('<path d="M '+f(pe.x)+' '+f(pe.y)+' Q '+f(arcX)+' '+f(midY)+' '+f(pn.x)+' '+f(pn.y)+'" fill="none" stroke="rgba(201,149,42,.2)" stroke-width="1"/>');
     }
   }
 
   /* Milestone labels */
-  for (var p=0; p<n; p++) {
-    for (var h=10; h<=120; h+=10) {
-      var hp = B.holePos[p][h];
-      if (!hp) continue;
+  for (var c=0;c<cols;c++) {
+    for (var h=10;h<=120;h+=10) {
+      var hp=B.holePos[c][h]; if(!hp) continue;
       s.push('<text x="'+f(hp.x)+'" y="'+f(hp.y-B.holeR-1)+'" text-anchor="middle" font-size="'+f(B.holeR*.95)+'" fill="rgba(201,149,42,.45)" font-family="Georgia,serif">'+h+'</text>');
     }
   }
 
   /* Start zones */
-  for (var p=0; p<n; p++) {
-    var h0 = B.holePos[p][0];
+  for (var c=0;c<cols;c++) {
+    var h0=B.holePos[c][0];
     s.push('<circle cx="'+f(h0.x)+'" cy="'+f(h0.y)+'" r="'+f(B.holeR+2.5)+'" fill="rgba(0,0,0,.35)" stroke="rgba(201,149,42,.55)" stroke-width="1"/>');
     s.push('<text x="'+f(h0.x)+'" y="'+f(h0.y+B.holeR*.38)+'" text-anchor="middle" font-size="'+f(B.holeR)+'" fill="rgba(201,149,42,.75)" font-family="Georgia,serif" font-weight="bold">S</text>');
   }
 
   /* Win zones */
-  for (var p=0; p<n; p++) {
-    var hw = B.holePos[p][MAX_SCORE];
-    s.push('<circle cx="'+f(hw.x)+'" cy="'+f(hw.y)+'" r="'+f(B.holeR+3)+'" fill="rgba(201,149,42,.12)" stroke="rgba(201,149,42,.75)" stroke-width="1.5"/>');
-    s.push('<text x="'+f(hw.x)+'" y="'+f(hw.y+B.holeR*.38)+'" text-anchor="middle" font-size="'+f(B.holeR*.95)+'" fill="rgba(201,149,42,.9)" font-family="Georgia,serif" font-weight="bold">W</text>');
+  for (var c=0;c<cols;c++) {
+    var hwp=B.holePos[c][MAX_SCORE];
+    s.push('<circle cx="'+f(hwp.x)+'" cy="'+f(hwp.y)+'" r="'+f(B.holeR+3)+'" fill="rgba(201,149,42,.12)" stroke="rgba(201,149,42,.75)" stroke-width="1.5"/>');
+    s.push('<text x="'+f(hwp.x)+'" y="'+f(hwp.y+B.holeR*.38)+'" text-anchor="middle" font-size="'+f(B.holeR*.95)+'" fill="rgba(201,149,42,.9)" font-family="Georgia,serif" font-weight="bold">W</text>');
   }
 
   /* Holes (1..120) */
-  for (var p=0; p<n; p++) {
-    for (var h=1; h<=120; h++) {
-      var hp = B.holePos[p][h];
-      if (!hp) continue;
+  for (var c=0;c<cols;c++) {
+    for (var h=1;h<=120;h++) {
+      var hp=B.holePos[c][h]; if(!hp) continue;
       s.push('<circle cx="'+f(hp.x)+'" cy="'+f(hp.y)+'" r="'+f(B.holeR)+'" fill="rgba(0,0,0,.62)"/>');
-      var op = (h%HOLES_PER_ROW===0) ? .25 : .1;
+      var op=(h%HOLES_PER_ROW===0)?.25:.1;
       s.push('<circle cx="'+f(hp.x)+'" cy="'+f(hp.y)+'" r="'+f(B.holeR-.7)+'" fill="none" stroke="rgba(255,255,255,'+op+')" stroke-width=".7"/>');
     }
   }
 
-  /* Pegs + score labels (rendered on top of everything) */
-  for (var p=0; p<n; p++) {
-    for (var peg=PEGS_PER_PLAYER-1; peg>=0; peg--) {
-      var h0  = B.holePos[p][0];
-      var isFront = (peg===0);
-      var offX = isFront ? B.pegR*.4 : -B.pegR*.4;
-      var offY = isFront ? -B.pegR*.15 : B.pegR*.15;
-      s.push('<circle id="ps_'+p+'_'+peg+'" cx="'+f(h0.x+offX+1)+'" cy="'+f(h0.y+offY+1.5)+'" r="'+f(B.pegR)+'" fill="rgba(0,0,0,.55)" class="peg-shadow"/>');
+  /* Pegs + score labels (one front+back peg pair per board column)
+     In 4p: col 0 = Team A shared peg, col 1 = Team B shared peg.
+     Unity: 2 Peg prefabs per column, sync'd to pegPos[col] */
+  for (var c=0;c<cols;c++) {
+    var colColor3 = is4p() ? teamColor(c) : PC[c];
+    for (var peg=PEGS_PER_PLAYER-1;peg>=0;peg--) {
+      var h0c=B.holePos[c][0], isFront=(peg===0);
+      var offX=isFront?B.pegR*.4:-B.pegR*.4, offY=isFront?-B.pegR*.15:B.pegR*.15;
+      s.push('<circle id="ps_'+c+'_'+peg+'" cx="'+f(h0c.x+offX+1)+'" cy="'+f(h0c.y+offY+1.5)+'" r="'+f(B.pegR)+'" fill="rgba(0,0,0,.55)" class="peg-shadow"/>');
       if (isFront) {
-        s.push('<circle id="p_'+p+'_'+peg+'" cx="'+f(h0.x+offX)+'" cy="'+f(h0.y+offY)+'" r="'+f(B.pegR)+'" fill="'+PC[p]+'" class="peg-el"/>');
-        s.push('<circle id="psh_'+p+'" cx="'+f(h0.x+offX-B.pegR*.22)+'" cy="'+f(h0.y+offY-B.pegR*.28)+'" r="'+f(B.pegR*.32)+'" fill="rgba(255,255,255,.55)" class="peg-shine" pointer-events="none"/>');
+        s.push('<circle id="p_'+c+'_'+peg+'" cx="'+f(h0c.x+offX)+'" cy="'+f(h0c.y+offY)+'" r="'+f(B.pegR)+'" fill="'+colColor3+'" class="peg-el"/>');
+        s.push('<circle id="psh_'+c+'" cx="'+f(h0c.x+offX-B.pegR*.22)+'" cy="'+f(h0c.y+offY-B.pegR*.28)+'" r="'+f(B.pegR*.32)+'" fill="rgba(255,255,255,.55)" class="peg-shine" pointer-events="none"/>');
       } else {
-        s.push('<circle id="p_'+p+'_'+peg+'" cx="'+f(h0.x+offX)+'" cy="'+f(h0.y+offY)+'" r="'+f(B.pegR)+'" fill="rgba(0,0,0,.45)" stroke="'+PC[p]+'" stroke-width="1.8" class="peg-el"/>');
+        s.push('<circle id="p_'+c+'_'+peg+'" cx="'+f(h0c.x+offX)+'" cy="'+f(h0c.y+offY)+'" r="'+f(B.pegR)+'" fill="rgba(0,0,0,.45)" stroke="'+colColor3+'" stroke-width="1.8" class="peg-el"/>');
       }
     }
-    /* Score label above front peg — another 50% larger (now 2.25× original)
-       lblSz: was pegR*1.75 max 18, now pegR*2.6 max 27
-       Unity: TextMeshPro fontSize *= 1.5 again */
-    var h0s = B.holePos[p][0];
-    var lblSz = Math.max(14, Math.min(B.pegR*2.6, 27));
-    var offXf = B.pegR*.4, offYf = -B.pegR*.15;
-    s.push('<text id="lbl_'+p+'" x="'+f(h0s.x+offXf)+'" y="'+f(h0s.y+offYf-B.pegR-5)+'"');
+    /* Score label above front peg */
+    var h0s=B.holePos[c][0];
+    var lblSz=Math.max(14,Math.min(B.pegR*2.6,27));
+    var offXf=B.pegR*.4, offYf=-B.pegR*.15;
+    var initScore = is4p() ? teamScore(c) : G.scores[c];
+    s.push('<text id="lbl_'+c+'" x="'+f(h0s.x+offXf)+'" y="'+f(h0s.y+offYf-B.pegR-5)+'"');
     s.push(' text-anchor="middle" font-size="'+f(lblSz)+'" font-weight="bold"');
-    s.push(' font-family="Georgia,serif" fill="'+PC[p]+'"');
+    s.push(' font-family="Georgia,serif" fill="'+colColor3+'"');
     s.push(' stroke="rgba(0,0,0,.8)" stroke-width="3.5" paint-order="stroke"');
-    s.push(' class="peg-lbl">0</text>');
+    s.push(' class="peg-lbl">'+initScore+'</text>');
   }
 
   s.push('</svg>');
-  cont.innerHTML = s.join('');
+  cont.innerHTML=s.join('');
 }
 
 /* ══════════════════════════════════════════════
    UPDATE PEGS
+   Iterates over board columns (not player indices in 4p).
+   G.pegPos[col] = [frontHole, backHole] for that column.
    ══════════════════════════════════════════════ */
 function updatePegs() {
-  for (var p=0; p<G.numPlayers; p++) {
-    for (var peg=0; peg<PEGS_PER_PLAYER; peg++) {
-      var hIdx = Math.min(G.pegPos[p][peg], MAX_SCORE);
-      var hp   = B.holePos[p][hIdx];
-      if (!hp) continue;
-      var isFront = (peg===0);
-      var offX = isFront ?  B.pegR*.4 : -B.pegR*.4;
-      var offY = isFront ? -B.pegR*.15:  B.pegR*.15;
-      setXY('p_'+p+'_'+peg,  hp.x+offX,   hp.y+offY);
-      setXY('ps_'+p+'_'+peg, hp.x+offX+1, hp.y+offY+1.5);
+  var cols=boardCols();
+  for (var c=0;c<cols;c++) {
+    for (var peg=0;peg<PEGS_PER_PLAYER;peg++) {
+      var hIdx=Math.min(G.pegPos[c][peg],MAX_SCORE);
+      var hp=B.holePos[c][hIdx]; if(!hp) continue;
+      var isFront=(peg===0);
+      var offX=isFront?B.pegR*.4:-B.pegR*.4, offY=isFront?-B.pegR*.15:B.pegR*.15;
+      setXY('p_'+c+'_'+peg,  hp.x+offX,   hp.y+offY);
+      setXY('ps_'+c+'_'+peg, hp.x+offX+1, hp.y+offY+1.5);
       if (isFront) {
-        setXY('psh_'+p, hp.x+offX-B.pegR*.22, hp.y+offY-B.pegR*.28);
-        var lbl = document.getElementById('lbl_'+p);
+        setXY('psh_'+c, hp.x+offX-B.pegR*.22, hp.y+offY-B.pegR*.28);
+        var lbl=document.getElementById('lbl_'+c);
         if (lbl) {
-          lbl.setAttribute('x', f(hp.x+offX));
-          lbl.setAttribute('y', f(hp.y+offY-B.pegR-5));
-          lbl.textContent = G.scores[p];
+          lbl.setAttribute('x',f(hp.x+offX));
+          lbl.setAttribute('y',f(hp.y+offY-B.pegR-5));
+          lbl.textContent = is4p() ? teamScore(c) : G.scores[c];
         }
       }
     }
@@ -888,193 +683,206 @@ function f(n){ return (+n).toFixed(1); }
 
 /* ══════════════════════════════════════════════
    ADVANCE PEG (leapfrog)
+   In 4p: playerIdx maps to a team (col).
+   Both partners' scores are always kept equal to the team track.
+   Returns the new score for the relevant track.
+   Unity: BoardManager.AdvancePeg(int boardCol, int pts)
    ══════════════════════════════════════════════ */
-function advancePeg(p, pts) {
-  var front = G.pegPos[p][0];
-  var newPos = Math.min(front+pts, MAX_SCORE);
-  G.pegPos[p][1] = front;
-  G.pegPos[p][0] = newPos;
-  G.scores[p]    = newPos;
+function advancePeg(playerIdx, pts) {
+  var col = boardColOf(playerIdx);  // 0 or 1 in 4p, else == playerIdx
+  var front  = G.pegPos[col][0];
+  var newPos = Math.min(front + pts, MAX_SCORE);
+  G.pegPos[col][1] = front;
+  G.pegPos[col][0] = newPos;
+
+  if (is4p()) {
+    /* Keep both partners' scores equal to team track score */
+    var partner1 = col === 0 ? 0 : 1;   // P1 or P2
+    var partner2 = col === 0 ? 2 : 3;   // P3 or P4
+    G.scores[partner1] = newPos;
+    G.scores[partner2] = newPos;
+  } else {
+    G.scores[playerIdx] = newPos;
+  }
+
   updatePegs();
   updateTrackerGrid();
   return newPos;
 }
 
 /* ══════════════════════════════════════════════
-   STATUS PANEL — "deals" instead of "shuffles"
-   Unity: DealerManager.GetDealerName()
+   STATUS PANEL
+   4p: shows dealer's name + "Team X's Crib" sub-note.
+   2p/3p: unchanged.
    ══════════════════════════════════════════════ */
 function updateStatus() {
-  /* Cribbage rules:
-     - The dealer holds the crib (the extra hand they score).
-     - The player to the dealer's LEFT cuts the deck.
-     Round 1: Player 1 deals & has crib. Player 2 cuts.
-     Round 2: Player 2 deals & has crib. Player 3 (or P1 in 2p) cuts. Etc.
-     Unity: DealerManager.GetDealerIdx(int round, int numPlayers)
-  */
-  var d    = (G.round - 1) % G.numPlayers;        // dealer index (0-based)
-  var cuts = (d + 1) % G.numPlayers;              // cutter = left of dealer
-  document.getElementById('statusCrib').textContent = G.names[d] + "'s Deal & Crib";
-  document.getElementById('statusCrib').style.color = PC[d];
-  document.getElementById('statusDeal').textContent = G.names[cuts] + ' cuts  ·  Round ' + G.round;
-  document.getElementById('menuRound').textContent  = 'Round ' + G.round;
+  /* Dealer rotates through all numPlayers each round.
+     The dealer holds the crib. Left-neighbour cuts. */
+  var d    = (G.round - 1) % G.numPlayers;
+  var cuts = (d + 1) % G.numPlayers;
+  var dealerName = G.names[d];
+  var cutsName   = G.names[cuts];
+  var cribColor  = is4p() ? teamColor(teamOf(d)) : PC[d];
+
+  var cribLine;
+  if (is4p()) {
+    var teamLetter = teamOf(d) === 0 ? 'A' : 'B';
+    cribLine = dealerName + "'s Deal & Crib  (Team " + teamLetter + ")";
+  } else {
+    cribLine = dealerName + "'s Deal & Crib";
+  }
+
+  document.getElementById('statusCrib').textContent = cribLine;
+  document.getElementById('statusCrib').style.color  = cribColor;
+  document.getElementById('statusDeal').textContent  = cutsName + ' cuts  ·  Round ' + G.round;
+  document.getElementById('menuRound').textContent   = 'Round ' + G.round;
 }
 
 /* ══════════════════════════════════════════════
-   MANUAL SCORING FLOW — simultaneous per-player
-   Unity: ScoringManager.cs — all PlayerScoringRows
-   active at once, NextRound commits all deltas
+   MANUAL SCORING — simultaneous all-player rows
+   In 4p mode rows show "Player + team label"
+   and score buttons advance the shared team track.
    ══════════════════════════════════════════════ */
-
-/* Score buttons for manual mode: 4 compact buttons per player */
-var MANUAL_BTNS = [
-  {l:'+2',v:2},{l:'+4',v:4},{l:'+10',v:10},{l:'−1',v:-1}
-];
-
-/* Per-player pending deltas during a round (separate from voice pendingDelta)
-   Unity: int[] playerRoundDeltas */
 var playerDeltas = [0,0,0,0];
 
 function onStartRound() {
-  /* Transition: hide Start Round btn, show all-players panel */
-  document.getElementById('start-round-btn').style.display = 'none';
+  document.getElementById('start-round-btn').style.display='none';
   if (G.mode === 'voice') {
-    G.scoringPlayer = 0; G.pendingDelta = 0;
-    document.getElementById('voice-input-panel').style.display = 'flex';
+    G.scoringPlayer=0; G.pendingDelta=0;
+    document.getElementById('voice-input-panel').style.display='flex';
     refreshVoiceUI(); setVoiceStatus('Tap mic to listen');
   } else {
-    playerDeltas = [0,0,0,0];
+    playerDeltas=[0,0,0,0];
     buildAllPlayerRows();
-    document.getElementById('all-players-panel').style.display = 'flex';
+    document.getElementById('all-players-panel').style.display='flex';
   }
-  G.scoringPhase = 'scoring';
+  G.scoringPhase='scoring';
 }
 
-/* Build simultaneous per-player scoring rows
-   Unity: foreach player → Instantiate(PlayerScoringRowPrefab) */
 function buildAllPlayerRows() {
-  var cont = document.getElementById('per-player-rows');
-  cont.innerHTML = '';
-  cont.style.display = 'flex';
-  cont.style.flexDirection = 'column';
-  cont.style.gap = '8px';
+  var cont=document.getElementById('per-player-rows');
+  cont.innerHTML=''; cont.style.display='flex'; cont.style.flexDirection='column'; cont.style.gap='8px';
 
-  for (var i = 0; i < G.numPlayers; i++) {
-    (function(idx) {
-      var col = PC[idx];
-      var dim = getPCD(idx);
+  /* In 4p render order [0,2,1,3] = Team A (P1,P3) then Team B (P2,P4) together.
+     Unity: sort PlayerScoringRow[] by teamIndex then partnerIndex. */
+  var renderOrder = is4p() ? [0,2,1,3] : [0,1,2,3].slice(0,G.numPlayers);
 
-      var row = document.createElement('div');
-      row.className = 'pp-row';
-      row.id = 'pprow_' + idx;
-      row.style.borderColor = col.replace(')', ',.4)').replace('rgb(','rgba(').replace('#', 'rgba(') || col;
-      /* Simpler border color approach: */
-      row.style.borderColor = hexToDim(col).replace('.28)', '.45)');
+  for (var ri=0;ri<renderOrder.length;ri++) {
+    (function(idx, renderIdx){
+      var col  = is4p() ? teamColor(teamOf(idx)) : PC[idx];
+      var dim  = hexToDim(col);
+      var currentScore = is4p() ? teamScore(teamOf(idx)) : G.scores[idx];
 
-      /* Info section: name + running total */
-      var info = document.createElement('div');
-      info.className = 'pp-info';
+      /* Team header before first player of each team in render order */
+      if (is4p() && (renderIdx === 0 || renderIdx === 2)) {
+        var teamLbl = document.createElement('div');
+        teamLbl.className = 'pp-team-label';
+        teamLbl.textContent = renderIdx === 0 ? '— Team A —' : '— Team B —';
+        teamLbl.style.color = col;
+        cont.appendChild(teamLbl);
+      }
 
-      var nameEl = document.createElement('div');
-      nameEl.className = 'pp-name';
-      nameEl.textContent = G.names[idx];
-      nameEl.style.color = col;
+      var row=document.createElement('div'); row.className='pp-row'; row.id='pprow_'+idx;
+      row.style.borderColor = hexToDim(col).replace('.28)','.45)');
 
-      var scoreEl = document.createElement('div');
-      scoreEl.className = 'pp-score';
-      scoreEl.id = 'pp-score-' + idx;
-      scoreEl.textContent = G.scores[idx];
-      scoreEl.style.color = col;
+      var info=document.createElement('div'); info.className='pp-info';
+      var nameEl=document.createElement('div'); nameEl.className='pp-name'; nameEl.textContent=G.names[idx]; nameEl.style.color=col;
+      var scoreEl=document.createElement('div'); scoreEl.className='pp-score'; scoreEl.id='pp-score-'+idx; scoreEl.textContent=currentScore; scoreEl.style.color=col;
+      info.appendChild(nameEl); info.appendChild(scoreEl);
 
-      info.appendChild(nameEl);
-      info.appendChild(scoreEl);
-
-      /* Buttons grid */
-      var btns = document.createElement('div');
-      btns.className = 'pp-btns';
-
-      MANUAL_BTNS.forEach(function(sb) {
-        var b = document.createElement('button');
-        b.className = 'pp-btn' + (sb.v < 0 ? ' pp-minus' : '');
-        b.textContent = sb.l;
-        b.style.borderColor = sb.v < 0 ? 'rgba(255,100,100,.4)' : col;
-        b.style.color       = sb.v < 0 ? 'rgba(255,130,130,.85)' : col;
-        b.style.background  = sb.v < 0 ? 'transparent' : dim;
-        b.setAttribute('data-v', sb.v);
-        b.addEventListener('click', function(e) {
-          e.stopPropagation();
-          applyPlayerDelta(idx, parseInt(b.getAttribute('data-v'), 10));
+      var btns=document.createElement('div'); btns.className='pp-btns';
+      MANUAL_BTNS.forEach(function(sb){
+        var b=document.createElement('button');
+        b.className='pp-btn'+(sb.v<0?' pp-minus':'');
+        b.textContent=sb.l;
+        b.style.borderColor=sb.v<0?'rgba(255,100,100,.4)':col;
+        b.style.color      =sb.v<0?'rgba(255,130,130,.85)':col;
+        b.style.background =sb.v<0?'transparent':dim;
+        b.setAttribute('data-v',sb.v);
+        b.addEventListener('click',function(e){
+          e.stopPropagation(); applyPlayerDelta(idx, parseInt(b.getAttribute('data-v'),10));
         });
         btns.appendChild(b);
       });
 
-      row.appendChild(info);
-      row.appendChild(btns);
-      cont.appendChild(row);
-    })(i);
+      row.appendChild(info); row.appendChild(btns); cont.appendChild(row);
+    })(renderOrder[ri], ri);
   }
 }
 
-/* Apply a score delta immediately to a player during the round
-   Score updates live — peg moves, label updates in real time.
-   Unity: PlayerScoringRow.OnButtonClick(int delta) → BoardManager.AdvancePeg() */
+/* Apply score delta for one player — advances shared team track in 4p.
+   Updates ALL rows that share the same team so scores stay in sync visually.
+   Unity: PlayerScoringRow.OnButtonClick → TeamManager.ApplyScore(teamIdx, delta) */
 function applyPlayerDelta(playerIdx, delta) {
   var newScore = advancePeg(playerIdx, delta);
-  /* Update the score display in the row */
-  var sc = document.getElementById('pp-score-' + playerIdx);
-  if (sc) sc.textContent = newScore;
-  /* Check win */
+
+  /* Refresh score displays for all players on the same team */
+  if (is4p()) {
+    var t = teamOf(playerIdx);
+    for (var p=0; p<G.numPlayers; p++) {
+      if (teamOf(p) === t) {
+        var el = document.getElementById('pp-score-'+p);
+        if (el) el.textContent = newScore;
+      }
+    }
+  } else {
+    var el2 = document.getElementById('pp-score-'+playerIdx);
+    if (el2) el2.textContent = newScore;
+  }
+
   if (newScore >= MAX_SCORE) {
-    setTimeout(function() { doWin(playerIdx); }, 400);
+    setTimeout(function(){ doWin(playerIdx); }, 400);
   }
 }
 
-/* Next Round: advance round counter, reset UI, show Start Round btn again
-   Unity: GameManager.AdvanceRound() */
 function onNextRound() {
-  G.round++;
-  G.scoringPhase = 'waiting';
-  playerDeltas = [0,0,0,0];
-  document.getElementById('all-players-panel').style.display = 'none';
-  document.getElementById('start-round-btn').style.display = '';
-  updateStatus();
-  updateTrackerGrid();
+  G.round++; G.scoringPhase='waiting'; playerDeltas=[0,0,0,0];
+  document.getElementById('all-players-panel').style.display='none';
+  document.getElementById('start-round-btn').style.display='';
+  updateStatus(); updateTrackerGrid();
 }
 
 /* ══════════════════════════════════════════════
-   VOICE SCORING FLOW (sequential per-player, unchanged)
-   Unity: VoiceScoringManager.cs
+   VOICE NEXT PLAYER
    ══════════════════════════════════════════════ */
 function onVoiceNextPlayer() {
-  if (micActive && micRecognition) { micRecognition.stop(); setMicOff(); }
-  var p = G.scoringPlayer;
-  if (G.pendingDelta !== 0) {
-    var ns = advancePeg(p, G.pendingDelta);
-    if (ns >= MAX_SCORE) { setTimeout(function(){ doWin(p); }, 450); return; }
+  if (micActive && micRecognition){ micRecognition.stop(); setMicOff(); }
+  var p=G.scoringPlayer;
+  if (G.pendingDelta!==0) {
+    var ns=advancePeg(p,G.pendingDelta);
+    if (ns>=MAX_SCORE){ setTimeout(function(){doWin(p);},450); return; }
   }
-  G.pendingDelta = 0;
-  if (p < G.numPlayers - 1) {
-    G.scoringPlayer++;
-    refreshVoiceUI(); setVoiceStatus('Tap mic to listen');
+  G.pendingDelta=0;
+  if (p<G.numPlayers-1){
+    G.scoringPlayer++; refreshVoiceUI(); setVoiceStatus('Tap mic to listen');
   } else {
-    /* Last player done — end voice round */
-    G.round++;
-    G.scoringPhase = 'waiting';
-    G.scoringPlayer = 0; G.pendingDelta = 0;
-    document.getElementById('voice-input-panel').style.display = 'none';
-    document.getElementById('start-round-btn').style.display = '';
+    G.round++; G.scoringPhase='waiting'; G.scoringPlayer=0; G.pendingDelta=0;
+    document.getElementById('voice-input-panel').style.display='none';
+    document.getElementById('start-round-btn').style.display='';
     updateStatus(); updateTrackerGrid();
   }
 }
 
 /* ══════════════════════════════════════════════
    WIN
+   4p: "Alice & Charlie" / "Wins the Game!" with team color.
    ══════════════════════════════════════════════ */
-function doWin(p) {
-  document.getElementById('winName').textContent  = G.names[p];
-  document.getElementById('winName').style.color  = PC[p];
+function doWin(playerIdx) {
+  var col, nameText;
+  if (is4p()) {
+    var t = teamOf(playerIdx);
+    col      = teamColor(t);
+    nameText = teamDisplayName(t);
+    document.getElementById('winLabel').textContent = 'Win the Game!';
+  } else {
+    col      = PC[playerIdx];
+    nameText = G.names[playerIdx];
+    document.getElementById('winLabel').textContent = 'Wins the Game!';
+  }
+  document.getElementById('winName').textContent  = nameText;
+  document.getElementById('winName').style.color  = col;
   document.getElementById('winScore').textContent = '121 Points · Round '+G.round;
-  document.getElementById('winSuits').style.color = PC[p];
+  document.getElementById('winSuits').style.color = col;
   var ov=document.getElementById('win-overlay');
   ov.classList.add('active');
   ov.onclick=function(){ ov.classList.remove('active'); resetGame(); };
@@ -1095,6 +903,7 @@ document.getElementById('pause-overlay').addEventListener('click',function(e){
 
 /* ══════════════════════════════════════════════
    MENU HELPERS
+   In 4p: show team A / team B headers between player rows.
    ══════════════════════════════════════════════ */
 function setPlayerCount(n) {
   G.numPlayers=n;
@@ -1104,44 +913,43 @@ function setPlayerCount(n) {
   buildNameInputs(); updateTrackerGrid();
 }
 
-/* Build player name rows with name input + color swatch button
-   Unity: PlayerNameRow prefab containing InputField + ColorSwatchButton */
 function buildNameInputs() {
   var list=document.getElementById('nameList'); list.innerHTML='';
-  for (var i=0; i<G.numPlayers; i++) {
-    (function(idx){
+  /* In 4p render order [0,2,1,3] = Team A (P1,P3) first, Team B (P2,P4) second.
+     Unity: sort PlayerNameRow[] by teamIndex then partnerIndex. */
+  var renderOrder = is4p() ? [0,2,1,3] : [0,1,2,3].slice(0,G.numPlayers);
+  for (var ri=0;ri<renderOrder.length;ri++) {
+    (function(idx, renderIdx){
+      /* Show team badge before the first player of each team in render order */
+      if (is4p() && (renderIdx === 0 || renderIdx === 2)) {
+        var badge=document.createElement('div'); badge.className='p-team-badge';
+        var tcol=teamColor(renderIdx===0?0:1);
+        badge.textContent = renderIdx===0 ? 'Team A  (P1 & P3 — opposite seats)' : 'Team B  (P2 & P4 — opposite seats)';
+        badge.style.color=tcol;
+        list.appendChild(badge);
+      }
+
       var row=document.createElement('div'); row.className='p-name-row';
+      var dotColor = is4p() ? teamColor(teamOf(idx)) : PC[idx];
+      var dot=document.createElement('div'); dot.className='p-dot'; dot.style.background=dotColor;
 
-      /* Color dot */
-      var dot=document.createElement('div'); dot.className='p-dot';
-      dot.style.background=PC[idx];
-
-      /* Name input */
       var inp=document.createElement('input');
       inp.type='text'; inp.className='p-input'; inp.maxLength=16;
       inp.placeholder='Player '+(idx+1)+' name';
       inp.value=G.names[idx]==='Player '+(idx+1)?'':G.names[idx];
-      inp.addEventListener('input',function(){
-        G.names[idx]=inp.value.trim()||'Player '+(idx+1);
-        updateTrackerGrid();
-      });
-      inp.addEventListener('focus',function(){inp.style.borderColor=PC[idx];inp.style.boxShadow='0 0 0 3px '+getPCD(idx);});
-      inp.addEventListener('blur', function(){inp.style.borderColor='';inp.style.boxShadow='';});
+      inp.addEventListener('input',function(){ G.names[idx]=inp.value.trim()||'Player '+(idx+1); updateTrackerGrid(); });
+      inp.addEventListener('focus',function(){ inp.style.borderColor=dotColor; inp.style.boxShadow='0 0 0 3px '+hexToDim(dotColor); });
+      inp.addEventListener('blur', function(){ inp.style.borderColor=''; inp.style.boxShadow=''; });
 
-      /* Color swatch button — opens color picker
-         Unity: ColorSwatchButton.OnClick → ColorPickerPanel.Open(playerIdx) */
       var swatchBtn=document.createElement('button');
       swatchBtn.className='p-color-btn';
       swatchBtn.style.background=PC[idx];
       swatchBtn.title='Change colour';
-      swatchBtn.addEventListener('click',function(e){
-        e.stopPropagation();
-        openColorPicker(idx);
-      });
+      swatchBtn.addEventListener('click',function(e){ e.stopPropagation(); openColorPicker(idx); });
 
       row.appendChild(dot); row.appendChild(inp); row.appendChild(swatchBtn);
       list.appendChild(row);
-    })(i);
+    })(renderOrder[ri], ri);
   }
 }
 
@@ -1151,18 +959,36 @@ function setMode(m) {
   document.getElementById('modeVoice').classList.toggle('active', m==='voice');
 }
 
+/* Score tracker: in 4p show team rows, not individual.
+   Unity: ScoreboardUI.Refresh() — TeamScoreRow prefabs in 4p */
 function updateTrackerGrid() {
   var g=document.getElementById('trGrid'); g.innerHTML='';
-  for (var i=0; i<G.numPlayers; i++) {
-    (function(idx){
-      var row=document.createElement('div'); row.className='tr-row';
-      var dot=document.createElement('div'); dot.className='tr-dot'; dot.style.background=PC[idx];
-      var nm=document.createElement('div'); nm.className='tr-name'; nm.textContent=G.names[idx]; nm.style.color=PC[idx];
-      var sc=document.createElement('div'); sc.className='tr-score'; sc.textContent=G.scores[idx];
-      var mx=document.createElement('div'); mx.className='tr-max'; mx.textContent='/ 121';
-      row.appendChild(dot); row.appendChild(nm); row.appendChild(sc); row.appendChild(mx);
-      g.appendChild(row);
-    })(i);
+  if (is4p()) {
+    /* Show 2 team rows */
+    for (var t=0;t<2;t++) {
+      (function(ti){
+        var row=document.createElement('div'); row.className='tr-row';
+        var col=teamColor(ti);
+        var dot=document.createElement('div'); dot.className='tr-dot'; dot.style.background=col;
+        var nm=document.createElement('div'); nm.className='tr-name'; nm.textContent=teamDisplayName(ti); nm.style.color=col;
+        var sc=document.createElement('div'); sc.className='tr-score'; sc.textContent=teamScore(ti);
+        var mx=document.createElement('div'); mx.className='tr-max'; mx.textContent='/ 121';
+        row.appendChild(dot); row.appendChild(nm); row.appendChild(sc); row.appendChild(mx);
+        g.appendChild(row);
+      })(t);
+    }
+  } else {
+    for (var i=0;i<G.numPlayers;i++) {
+      (function(idx){
+        var row=document.createElement('div'); row.className='tr-row';
+        var dot=document.createElement('div'); dot.className='tr-dot'; dot.style.background=PC[idx];
+        var nm=document.createElement('div'); nm.className='tr-name'; nm.textContent=G.names[idx]; nm.style.color=PC[idx];
+        var sc=document.createElement('div'); sc.className='tr-score'; sc.textContent=G.scores[idx];
+        var mx=document.createElement('div'); mx.className='tr-max'; mx.textContent='/ 121';
+        row.appendChild(dot); row.appendChild(nm); row.appendChild(sc); row.appendChild(mx);
+        g.appendChild(row);
+      })(i);
+    }
   }
 }
 
@@ -1170,20 +996,18 @@ function updateTrackerGrid() {
    START / RESET
    ══════════════════════════════════════════════ */
 function startGame() {
-  document.querySelectorAll('.p-input').forEach(function(inp,i){
-    G.names[i]=inp.value.trim()||'Player '+(i+1);
-  });
+  document.querySelectorAll('.p-input').forEach(function(inp,i){ G.names[i]=inp.value.trim()||'Player '+(i+1); });
   G.started=true; G.paused=false; G.round=1;
   G.scores=[0,0,0,0]; G.pegPos=[[0,0],[0,0],[0,0],[0,0]];
   G.scoringPhase='waiting'; G.scoringPlayer=0; G.pendingDelta=0;
   micActive=false; if(micRecognition){try{micRecognition.abort();}catch(e){}} micRecognition=null;
+  playerDeltas=[0,0,0,0];
 
   document.getElementById('splash-screen').style.display='none';
   document.getElementById('board-screen').style.display='flex';
   document.getElementById('all-players-panel').style.display='none';
   document.getElementById('voice-input-panel').style.display='none';
   document.getElementById('start-round-btn').style.display='';
-  playerDeltas = [0,0,0,0];
 
   setTimeout(function(){
     buildBoardSVG(); updatePegs(); updateStatus(); updateTrackerGrid();
@@ -1196,7 +1020,7 @@ function resetGame() {
   G.scores=[0,0,0,0]; G.pegPos=[[0,0],[0,0],[0,0],[0,0]];
   G.scoringPhase='waiting'; G.pendingDelta=0;
   micActive=false; if(micRecognition){try{micRecognition.abort();}catch(e){}} micRecognition=null;
-  PC = DEFAULT_PC.slice();  // reset colors to defaults
+  PC=DEFAULT_PC.slice(); playerDeltas=[0,0,0,0];
 
   document.getElementById('board-screen').style.display='none';
   document.getElementById('splash-screen').style.display='flex';
@@ -1206,7 +1030,6 @@ function resetGame() {
   document.getElementById('all-players-panel').style.display='none';
   document.getElementById('voice-input-panel').style.display='none';
   document.getElementById('start-round-btn').style.display='';
-  playerDeltas = [0,0,0,0];
   updateTrackerGrid(); buildNameInputs();
   document.getElementById('menuRound').textContent='Round 0 · Game not started';
   window.scrollTo({top:0,behavior:'smooth'});
