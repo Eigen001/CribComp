@@ -91,19 +91,35 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
 #voice-layout{display:flex;flex-direction:row;gap:10px;align-items:stretch;}
 #voice-mic-col{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;flex:0 0 auto;width:80px;}
 #voice-players-col{flex:1 1 auto;display:flex;flex-direction:column;gap:6px;}
-.vp-row{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:8px;border:1.5px solid;background:rgba(0,0,0,.18);}
-.vp-info{flex:1;min-width:0;}
+/* Voice player rows: [−1 full-height] [name+score flex] [+1 full-height]
+   Buttons stretch to full row height via align-self:stretch on the row
+   and align-items:stretch on the flex container.
+   Unity: HorizontalLayoutGroup with LayoutElement stretch on buttons */
+.vp-row{display:flex;align-items:stretch;gap:0;padding:0;border-radius:8px;border:1.5px solid;background:rgba(0,0,0,.18);overflow:hidden;min-height:52px;}
+.vp-info{flex:1;min-width:0;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;}
 .vp-name{font-family:'Playfair Display',serif;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.vp-score{font-family:'Playfair Display',serif;font-size:18px;font-weight:900;line-height:1;}
-.vp-btns{display:flex;flex-direction:column;gap:4px;flex-shrink:0;}
-.vp-btn{font-family:'Crimson Pro',serif;font-size:13px;font-weight:700;width:32px;height:24px;border-radius:6px;border:1.5px solid;background:transparent;cursor:pointer;-webkit-appearance:none;transition:all .12s ease;display:flex;align-items:center;justify-content:center;}
-.vp-btn:active{transform:scale(.88);}
-#v-next-round-btn{font-family:'Playfair Display',serif;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:14px 24px;border-radius:var(--radius);border:none;cursor:pointer;-webkit-appearance:none;background:var(--brass);color:var(--felt-dark);box-shadow:0 4px 20px rgba(201,149,42,.4);transition:all var(--t);width:100%;align-self:stretch;}
-#v-next-round-btn:active{transform:scale(.97);box-shadow:none;}
+.vp-score{font-family:'Playfair Display',serif;font-size:20px;font-weight:900;line-height:1;}
+.vp-btns{display:none;}/* unused — buttons are direct row children now */
+/* Full-height buttons — sit flush left (minus) and right (plus) of the row */
+.vp-btn{
+  font-family:'Crimson Pro',serif;font-size:16px;font-weight:800;
+  width:44px;flex-shrink:0;
+  border:none;border-radius:0;
+  background:transparent;cursor:pointer;-webkit-appearance:none;
+  transition:background .12s ease;
+  display:flex;align-items:center;justify-content:center;
+  align-self:stretch;
+}
+.vp-btn:active{filter:brightness(1.4);}
+.vp-btn.vp-minus{border-right:1px solid rgba(255,255,255,.08);}
+.vp-btn.vp-plus {border-left: 1px solid rgba(255,255,255,.08);}
+
 #mic-btn{width:90px;height:90px;border-radius:50%;border:3px solid rgba(120,120,120,.5);background:rgba(50,50,50,.6);color:rgba(180,180,180,.8);font-size:36px;cursor:pointer;-webkit-appearance:none;transition:all .35s ease;display:flex;align-items:center;justify-content:center;align-self:center;}
 #mic-btn.recording{border-color:#4adb7a;background:rgba(74,219,122,.18);color:#4adb7a;animation:micPulse 1.2s ease-out infinite;}
 .voice-status{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--ivory-dim);text-align:center;min-height:18px;}
-/* v-next-btn removed — replaced by v-next-round-btn */
+/* v-next-round-btn — voice mode Next Round, same style as manual */
+#v-next-round-btn{font-family:'Playfair Display',serif;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:14px 24px;border-radius:var(--radius);border:none;cursor:pointer;-webkit-appearance:none;background:var(--brass);color:var(--felt-dark);box-shadow:0 4px 20px rgba(201,149,42,.4);transition:all var(--t);width:100%;align-self:stretch;}
+#v-next-round-btn:active{transform:scale(.97);box-shadow:none;}
 /* sc-name/sc-cur/sc-delta needed by voice mode */
 .sc-name{font-family:'Playfair Display',serif;font-size:clamp(15px,4.5vw,20px);font-weight:700;text-align:center;letter-spacing:1px;}
 .sc-cur{font-size:13px;letter-spacing:3px;text-transform:uppercase;text-align:center;color:var(--ivory-dim);margin-top:-6px;}
@@ -259,7 +275,8 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
           <div id="voice-player-rows"></div>
         </div>
       </div>
-      <button id="v-next-round-btn" onclick="onVoiceNextRound()">Next Round ▶</button>
+      <!-- Shared Next Round button — same as manual mode, cycles crib/deal -->
+      <button id="v-next-round-btn" onclick="onNextRound()">Next Round ▶</button>
     </div>
   </div><!-- end scoring-zone -->
 </div><!-- end board-screen -->
@@ -606,6 +623,20 @@ function buildVoicePlayerRows() {
     row.className = 'vp-row';
     row.style.borderColor = hexToDim(col).replace('.28)','.45)');
 
+    /* −1 button — full height, left side, immediately next to name */
+    var bMinus = document.createElement('button');
+    bMinus.className = 'vp-btn vp-minus';
+    bMinus.textContent = '−1';
+    bMinus.style.color = 'rgba(255,130,130,.9)';
+    bMinus.style.background = 'rgba(255,60,60,.12)';
+    bMinus.addEventListener('click', function(e){
+      e.stopPropagation();
+      var ns = advancePeg(idx, -1);
+      var el = document.getElementById('vp-score-'+idx);
+      if (el) el.textContent = ns;
+    });
+
+    /* Name + score info — centre, flex grows to fill */
     var info = document.createElement('div'); info.className = 'vp-info';
     var nameEl = document.createElement('div'); nameEl.className = 'vp-name';
     nameEl.textContent = G.names[idx]; nameEl.style.color = col;
@@ -613,11 +644,12 @@ function buildVoicePlayerRows() {
     scoreEl.id = 'vp-score-'+idx; scoreEl.textContent = currentScore; scoreEl.style.color = col;
     info.appendChild(nameEl); info.appendChild(scoreEl);
 
-    var btns = document.createElement('div'); btns.className = 'vp-btns';
-
-    /* +1 button */
-    var bPlus = document.createElement('button'); bPlus.className = 'vp-btn';
-    bPlus.textContent = '+1'; bPlus.style.borderColor = col; bPlus.style.color = col; bPlus.style.background = dim;
+    /* +1 button — full height, right side */
+    var bPlus = document.createElement('button');
+    bPlus.className = 'vp-btn vp-plus';
+    bPlus.textContent = '+1';
+    bPlus.style.color = col;
+    bPlus.style.background = dim;
     bPlus.addEventListener('click', function(e){
       e.stopPropagation();
       var ns = advancePeg(idx, 1);
@@ -626,18 +658,8 @@ function buildVoicePlayerRows() {
       if (ns >= MAX_SCORE) setTimeout(function(){ doWin(idx); }, 400);
     });
 
-    /* -1 button */
-    var bMinus = document.createElement('button'); bMinus.className = 'vp-btn';
-    bMinus.textContent = '−1'; bMinus.style.borderColor = 'rgba(255,100,100,.4)'; bMinus.style.color = 'rgba(255,130,130,.85)';
-    bMinus.addEventListener('click', function(e){
-      e.stopPropagation();
-      var ns = advancePeg(idx, -1);
-      var el = document.getElementById('vp-score-'+idx);
-      if (el) el.textContent = ns;
-    });
-
-    btns.appendChild(bPlus); btns.appendChild(bMinus);
-    row.appendChild(info); row.appendChild(btns);
+    /* Order: [−1] [name+score] [+1] */
+    row.appendChild(bMinus); row.appendChild(info); row.appendChild(bPlus);
     cont.appendChild(row);
   });
 }
@@ -954,6 +976,7 @@ function onStartRound() {
     buildAllPlayerRows();
     document.getElementById('all-players-panel').style.display='flex';
   }
+  /* Both modes: Start Round button stays hidden until Next Round is pressed */
   G.scoringPhase='scoring';
 }
 
@@ -1034,23 +1057,19 @@ function applyPlayerDelta(playerIdx, delta) {
 }
 
 function onNextRound() {
+  /* Shared Next Round for both manual and voice modes.
+     Hides whichever scoring panel is active, shows Start Round,
+     advances round counter and rotates crib/deal.
+     Unity: GameManager.AdvanceRound() */
+  if (micActive && micRecognition) { micRecognition.stop(); setMicOff(); }
   G.round++; G.scoringPhase='waiting'; playerDeltas=[0,0,0,0];
   document.getElementById('all-players-panel').style.display='none';
-  document.getElementById('start-round-btn').style.display='';
-  updateStatus(); updateTrackerGrid();
-}
-
-/* ══════════════════════════════════════════════
-   VOICE NEXT ROUND — ends voice scoring for this round
-   Unity: VoiceScoringManager.EndRound()
-   ══════════════════════════════════════════════ */
-function onVoiceNextRound() {
-  if (micActive && micRecognition) { micRecognition.stop(); setMicOff(); }
-  G.round++; G.scoringPhase='waiting'; G.pendingDelta=0; G.scoringPlayer=0;
   document.getElementById('voice-input-panel').style.display='none';
   document.getElementById('start-round-btn').style.display='';
   updateStatus(); updateTrackerGrid();
 }
+
+
 
 /* ══════════════════════════════════════════════
    WIN
