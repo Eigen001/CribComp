@@ -86,15 +86,24 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
 .pp-team-label{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--ivory-faint);padding:4px 4px 0;font-family:'Crimson Pro',serif;}
 #next-round-btn{font-family:'Playfair Display',serif;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:14px 24px;border-radius:var(--radius);border:none;cursor:pointer;-webkit-appearance:none;background:var(--brass);color:var(--felt-dark);box-shadow:0 4px 20px rgba(201,149,42,.4);transition:all var(--t);width:100%;align-self:stretch;margin-top:4px;}
 #next-round-btn:active{transform:scale(.97);box-shadow:none;}
-#voice-input-panel{display:none;flex-direction:column;gap:16px;align-items:center;}
-.voice-mini-btns{display:flex;gap:12px;}
-.voice-mini-btn{font-family:'Crimson Pro',serif;font-size:18px;font-weight:700;width:52px;height:52px;border-radius:12px;border:1.5px solid;background:transparent;cursor:pointer;-webkit-appearance:none;transition:all .15s ease;display:flex;align-items:center;justify-content:center;}
-.voice-mini-btn:active{transform:scale(.92);}
+/* VOICE PANEL — left:mic, right:player rows */
+#voice-input-panel{display:none;flex-direction:column;gap:10px;}
+#voice-layout{display:flex;flex-direction:row;gap:10px;align-items:stretch;}
+#voice-mic-col{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;flex:0 0 auto;width:80px;}
+#voice-players-col{flex:1 1 auto;display:flex;flex-direction:column;gap:6px;}
+.vp-row{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:8px;border:1.5px solid;background:rgba(0,0,0,.18);}
+.vp-info{flex:1;min-width:0;}
+.vp-name{font-family:'Playfair Display',serif;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.vp-score{font-family:'Playfair Display',serif;font-size:18px;font-weight:900;line-height:1;}
+.vp-btns{display:flex;flex-direction:column;gap:4px;flex-shrink:0;}
+.vp-btn{font-family:'Crimson Pro',serif;font-size:13px;font-weight:700;width:32px;height:24px;border-radius:6px;border:1.5px solid;background:transparent;cursor:pointer;-webkit-appearance:none;transition:all .12s ease;display:flex;align-items:center;justify-content:center;}
+.vp-btn:active{transform:scale(.88);}
+#v-next-round-btn{font-family:'Playfair Display',serif;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:14px 24px;border-radius:var(--radius);border:none;cursor:pointer;-webkit-appearance:none;background:var(--brass);color:var(--felt-dark);box-shadow:0 4px 20px rgba(201,149,42,.4);transition:all var(--t);width:100%;align-self:stretch;}
+#v-next-round-btn:active{transform:scale(.97);box-shadow:none;}
 #mic-btn{width:90px;height:90px;border-radius:50%;border:3px solid rgba(120,120,120,.5);background:rgba(50,50,50,.6);color:rgba(180,180,180,.8);font-size:36px;cursor:pointer;-webkit-appearance:none;transition:all .35s ease;display:flex;align-items:center;justify-content:center;align-self:center;}
 #mic-btn.recording{border-color:#4adb7a;background:rgba(74,219,122,.18);color:#4adb7a;animation:micPulse 1.2s ease-out infinite;}
 .voice-status{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--ivory-dim);text-align:center;min-height:18px;}
-#v-next-btn{font-family:'Playfair Display',serif;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:14px 24px;border-radius:var(--radius);border:none;cursor:pointer;-webkit-appearance:none;background:var(--brass);color:var(--felt-dark);box-shadow:0 4px 20px rgba(201,149,42,.4);transition:all var(--t);width:100%;max-width:320px;align-self:center;}
-#v-next-btn:active{transform:scale(.97);box-shadow:none;}
+/* v-next-btn removed — replaced by v-next-round-btn */
 /* sc-name/sc-cur/sc-delta needed by voice mode */
 .sc-name{font-family:'Playfair Display',serif;font-size:clamp(15px,4.5vw,20px);font-weight:700;text-align:center;letter-spacing:1px;}
 .sc-cur{font-size:13px;letter-spacing:3px;text-transform:uppercase;text-align:center;color:var(--ivory-dim);margin-top:-6px;}
@@ -235,18 +244,22 @@ body{background:var(--felt-dark);color:var(--ivory);font-family:'Crimson Pro',Ge
       <button id="next-round-btn" onclick="onNextRound()">Next Round ▶</button>
     </div>
 
-    <!-- VOICE scoring — sequential per player -->
+    <!-- VOICE scoring — simultaneous all players, one mic button
+         Left side: big mic button. Right side: +1/-1 per player.
+         Unity: VoiceScoringPanel with MicButton + PlayerAdjustColumn -->
     <div id="voice-input-panel">
-      <div class="sc-name"  id="vScName">Player 1</div>
-      <div class="sc-cur"   id="vScCur">Current score: 0</div>
-      <div class="sc-delta" id="vScDelta">+0</div>
-      <div class="voice-mini-btns">
-        <button class="voice-mini-btn" id="vMinus1" onclick="vNudge(-1)">−1</button>
-        <button class="voice-mini-btn" id="vPlus1"  onclick="vNudge(+1)">+1</button>
+      <div id="voice-layout">
+        <!-- Left: big microphone button -->
+        <div id="voice-mic-col">
+          <button id="mic-btn" onclick="toggleMic()">🎤</button>
+          <div class="voice-status" id="voiceStatus">Tap mic to score</div>
+        </div>
+        <!-- Right: per-player name + score + tiny +1/-1 buttons -->
+        <div id="voice-players-col">
+          <div id="voice-player-rows"></div>
+        </div>
       </div>
-      <button id="mic-btn" onclick="toggleMic()">🎤</button>
-      <div class="voice-status" id="voiceStatus">Tap mic to listen</div>
-      <button id="v-next-btn" onclick="onVoiceNextPlayer()">Next Player</button>
+      <button id="v-next-round-btn" onclick="onVoiceNextRound()">Next Round ▶</button>
     </div>
   </div><!-- end scoring-zone -->
 </div><!-- end board-screen -->
@@ -406,9 +419,35 @@ document.getElementById('color-picker-modal').addEventListener('click', function
 });
 
 /* ══════════════════════════════════════════════
-   VOICE SCORING
+   VOICE SCORING — simultaneous all-player mode
+   ══════════════════════════════════════════════
+
+   NEW DESIGN:
+   - One big mic button (left). Per-player +1/-1 buttons (right).
+   - All players visible simultaneously — no cycling.
+   - Voice commands score any player by name or number:
+       "give Jorge 15 points"
+       "player 2 gets 8"
+       "Tom 10, George 5"   ← multiple assignments in one phrase
+   - Parser extracts (name/playerN → points) pairs from transcript.
+   - Falls back to the currently active player if no name found.
+
+   Unity: VoiceScoringManager.cs — ParseTranscript() returns
+          List<(int playerIdx, int points)> assignments
    ══════════════════════════════════════════════ */
 var micRecognition = null, micActive = false;
+
+/* Word-to-number map for spoken numbers */
+var WORD_NUMS = {
+  'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,
+  'eight':8,'nine':9,'ten':10,'eleven':11,'twelve':12,'thirteen':13,
+  'fourteen':14,'fifteen':15,'sixteen':16,'seventeen':17,'eighteen':18,
+  'nineteen':19,'twenty':20,'twenty one':21,'twenty-one':21,
+  'twenty two':22,'twenty-two':22,'twenty three':23,'twenty-three':23,
+  'twenty four':24,'twenty-four':24,'twenty five':25,'twenty-five':25,
+  'twenty six':26,'twenty-six':26,'twenty seven':27,'twenty-seven':27,
+  'twenty eight':28,'twenty-eight':28,'twenty nine':29,'twenty-nine':29
+};
 
 function initSpeechRecognition() {
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -416,52 +455,191 @@ function initSpeechRecognition() {
   var r = new SR();
   r.continuous=false; r.interimResults=false; r.lang='en-US'; r.maxAlternatives=1;
   r.onresult = function(e){ applyVoiceTranscript(e.results[0][0].transcript); };
-  r.onerror  = function(e){ setVoiceStatus('Error: '+e.error+'. Try again.'); setMicOff(); };
+  r.onerror  = function(e){ setVoiceStatus('Error: '+e.error); setMicOff(); };
   r.onend    = function(){ setMicOff(); };
   return r;
 }
+
 function toggleMic() {
   if (!micActive) {
     if (!micRecognition) micRecognition = initSpeechRecognition();
-    if (!micRecognition) { setVoiceStatus('Voice not supported'); return; }
-    try { micRecognition.start(); micActive=true; document.getElementById('mic-btn').classList.add('recording'); setVoiceStatus('🔴 Listening… say a number'); }
-    catch(e){ setVoiceStatus('Mic error — try again'); }
-  } else { micRecognition.stop(); setMicOff(); setVoiceStatus('Processing…'); }
+    if (!micRecognition) { setVoiceStatus('Voice not supported on this browser'); return; }
+    try {
+      micRecognition.start();
+      micActive = true;
+      document.getElementById('mic-btn').classList.add('recording');
+      setVoiceStatus('🔴 Listening…');
+    } catch(e) { setVoiceStatus('Mic error — try again'); }
+  } else {
+    micRecognition.stop();
+    setMicOff();
+    setVoiceStatus('Processing…');
+  }
 }
-function setMicOff(){ micActive=false; document.getElementById('mic-btn').classList.remove('recording'); }
+function setMicOff() {
+  micActive = false;
+  document.getElementById('mic-btn').classList.remove('recording');
+}
+function setVoiceStatus(msg) {
+  var el = document.getElementById('voiceStatus');
+  if (el) el.textContent = msg;
+}
+
+/* ── TRANSCRIPT PARSER ──────────────────────────────────────────────
+   Extracts one or more (playerIdx, points) assignments from a phrase.
+
+   Strategy:
+   1. Normalise digits spelled as words ("fifteen" → 15).
+   2. Scan for player identifiers: custom names OR "player N" patterns.
+   3. For each identifier found, grab the nearest number after it.
+   4. If NO identifier found, award points to all players (fallback).
+
+   Examples that work:
+     "give Jorge 15 points"            → Jorge: +15
+     "player 2 gets 8"                 → P2: +8
+     "Tom 10 and George 5"             → Tom: +10, George: +5
+     "12"                              → all players (no name = global)
+     "award team a six"                → Team A track: +6 (4p mode)
+
+   Unity: List<ScoringAssignment> ParseTranscript(string transcript)
+   ──────────────────────────────────────────────────────────────── */
 function applyVoiceTranscript(transcript) {
-  var wordNums = {'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,'ten':10,'eleven':11,'twelve':12,'thirteen':13,'fourteen':14,'fifteen':15,'sixteen':16,'seventeen':17,'eighteen':18,'nineteen':19,'twenty':20,'twenty-one':21,'twenty one':21,'twenty-two':22,'twenty two':22,'twenty-three':23,'twenty three':23,'twenty-four':24,'twenty four':24,'twenty-five':25,'twenty five':25,'twenty-six':26,'twenty six':26,'twenty-seven':27,'twenty seven':27,'twenty-eight':28,'twenty eight':28,'twenty-nine':29,'twenty nine':29};
-  var lower=transcript.toLowerCase().trim(), found=null;
-  var dm=lower.match(/\b(\d+)\b/); if(dm) found=parseInt(dm[1],10);
-  if (found===null) { for(var w in wordNums){ if(lower.indexOf(w)!==-1){found=wordNums[w];break;} } }
-  if (found!==null && found>=0) { G.pendingDelta=0; vNudge(found); setVoiceStatus('Heard: "'+transcript+'" → +'+found+' pts'); }
-  else setVoiceStatus('"'+transcript+'" — no number found. Try again.');
+  var lower = transcript.toLowerCase().trim();
+
+  /* Step 1: replace word-numbers with digits */
+  /* Sort longest first so "twenty one" matches before "one" */
+  var wordKeys = Object.keys(WORD_NUMS).sort(function(a,b){ return b.length-a.length; });
+  wordKeys.forEach(function(w){
+    lower = lower.replace(new RegExp('\\b'+w+'\\b','g'), ' '+WORD_NUMS[w]+' ');
+  });
+  lower = lower.replace(/\s+/g,' ').trim();
+
+  /* Step 2: build a list of {name, playerIdx, pos} from the transcript.
+     Check custom player names first, then "player N" patterns.
+     Unity: foreach player, check if name appears in transcript. */
+  var found = [];   /* [{playerIdx, pos}] */
+
+  /* Check "player 1", "player 2" etc */
+  for (var pi = 0; pi < G.numPlayers; pi++) {
+    var pat = new RegExp('\\bplayer\\s*'+(pi+1)+'\\b');
+    var m   = pat.exec(lower);
+    if (m) found.push({ playerIdx: pi, pos: m.index });
+  }
+
+  /* Check custom player names (only if name length >= 2 to avoid false matches) */
+  for (var pi = 0; pi < G.numPlayers; pi++) {
+    var nm = G.names[pi].toLowerCase().trim();
+    if (nm.length < 2) continue;
+    /* Skip generic names that would always match */
+    if (/^player\s*\d+$/.test(nm)) continue;
+    var idx = lower.indexOf(nm);
+    if (idx !== -1) {
+      /* Don't double-add if already found via "player N" */
+      var alreadyFound = found.some(function(f){ return f.playerIdx === pi; });
+      if (!alreadyFound) found.push({ playerIdx: pi, pos: idx });
+    }
+  }
+
+  /* Sort by position in transcript */
+  found.sort(function(a,b){ return a.pos - b.pos; });
+
+  /* Step 3: for each found player, extract the nearest number after their name */
+  var assignments = [];
+  for (var i = 0; i < found.length; i++) {
+    var searchFrom = found[i].pos;
+    var searchTo   = (i + 1 < found.length) ? found[i+1].pos : lower.length;
+    var segment    = lower.slice(searchFrom, searchTo);
+    var numMatch   = segment.match(/\b(\d+)\b/);
+    if (numMatch) {
+      assignments.push({ playerIdx: found[i].playerIdx, pts: parseInt(numMatch[1], 10) });
+    }
+  }
+
+  /* Step 4: if no player identified, look for a lone number and apply to all */
+  if (assignments.length === 0) {
+    var globalNum = lower.match(/\b(\d+)\b/);
+    if (globalNum) {
+      var pts = parseInt(globalNum[1], 10);
+      assignments = [];
+      for (var pi = 0; pi < G.numPlayers; pi++) {
+        assignments.push({ playerIdx: pi, pts: pts });
+      }
+      setVoiceStatus('No name heard — awarding '+pts+' to all');
+    } else {
+      setVoiceStatus('Heard: "'+transcript+'" — no score found');
+      return;
+    }
+  }
+
+  /* Step 5: apply all assignments */
+  var resultParts = [];
+  for (var ai = 0; ai < assignments.length; ai++) {
+    var a   = assignments[ai];
+    var ns  = advancePeg(a.playerIdx, a.pts);
+    var nm2 = G.names[a.playerIdx];
+    resultParts.push(nm2+' +'+a.pts);
+    /* Update the score display in the voice panel */
+    var scoreEl = document.getElementById('vp-score-'+a.playerIdx);
+    if (scoreEl) scoreEl.textContent = ns;
+    if (ns >= MAX_SCORE) {
+      setTimeout(function(){ doWin(a.playerIdx); }, 400);
+    }
+  }
+  setVoiceStatus('✓ ' + resultParts.join('  ·  '));
 }
-function setVoiceStatus(msg){ var el=document.getElementById('voiceStatus'); if(el) el.textContent=msg; }
-function vNudge(v) {
-  /* In voice mode G.scoringPlayer is the player index.
-     In 4p mode, we cap against team score not player score. */
-  var teamScoreNow = is4p() ? teamScore(teamOf(G.scoringPlayer)) : G.scores[G.scoringPlayer];
-  G.pendingDelta += v;
-  var proj = teamScoreNow + G.pendingDelta;
-  if (proj < 0)         G.pendingDelta = -teamScoreNow;
-  if (proj > MAX_SCORE) G.pendingDelta = MAX_SCORE - teamScoreNow;
-  refreshVoiceUI();
-}
-function refreshVoiceUI() {
-  var p=G.scoringPlayer;
-  /* In 4p show team name + team score */
-  var displayName = is4p() ? (G.names[p] + ' (' + (teamOf(p)===0?'Team A':'Team B') + ')') : G.names[p];
-  var teamScoreNow = is4p() ? teamScore(teamOf(p)) : G.scores[p];
-  var col = is4p() ? teamColor(teamOf(p)) : PC[p];
-  document.getElementById('vScName').textContent=displayName+"'s Score"; document.getElementById('vScName').style.color=col;
-  document.getElementById('vScCur').textContent='Team score: '+teamScoreNow;
-  var d=G.pendingDelta; document.getElementById('vScDelta').textContent=(d>=0?'+':'')+d; document.getElementById('vScDelta').style.color=col;
-  var vm1=document.getElementById('vMinus1'),vp1=document.getElementById('vPlus1');
-  if(vm1){vm1.style.borderColor='rgba(255,100,100,.4)';vm1.style.color='rgba(255,130,130,.85)';}
-  if(vp1){vp1.style.borderColor=col;vp1.style.color=col;vp1.style.background=hexToDim(col);}
-  var nb=document.getElementById('v-next-btn');
-  if(nb){ nb.textContent=(p===G.numPlayers-1)?'Next Round ▶':'Next Player ▶'; nb.style.background=col; nb.style.color='#061510'; }
+
+/* ── BUILD VOICE PLAYER ROWS ──
+   Called when voice mode starts. Creates per-player rows with
+   name, score display, and tiny +1/-1 buttons.
+   Identical layout to manual mode but compact and on the right side.
+   Unity: instantiate VoicePlayerRow prefab per player. */
+function buildVoicePlayerRows() {
+  var cont = document.getElementById('voice-player-rows');
+  cont.innerHTML = '';
+  var renderOrder = is4p() ? [0,2,1,3] : [0,1,2,3].slice(0, G.numPlayers);
+  renderOrder.forEach(function(idx) {
+    var col = is4p() ? teamColor(teamOf(idx)) : PC[idx];
+    var dim = hexToDim(col);
+    var currentScore = is4p() ? teamScore(teamOf(idx)) : G.scores[idx];
+
+    var row = document.createElement('div');
+    row.className = 'vp-row';
+    row.style.borderColor = hexToDim(col).replace('.28)','.45)');
+
+    var info = document.createElement('div'); info.className = 'vp-info';
+    var nameEl = document.createElement('div'); nameEl.className = 'vp-name';
+    nameEl.textContent = G.names[idx]; nameEl.style.color = col;
+    var scoreEl = document.createElement('div'); scoreEl.className = 'vp-score';
+    scoreEl.id = 'vp-score-'+idx; scoreEl.textContent = currentScore; scoreEl.style.color = col;
+    info.appendChild(nameEl); info.appendChild(scoreEl);
+
+    var btns = document.createElement('div'); btns.className = 'vp-btns';
+
+    /* +1 button */
+    var bPlus = document.createElement('button'); bPlus.className = 'vp-btn';
+    bPlus.textContent = '+1'; bPlus.style.borderColor = col; bPlus.style.color = col; bPlus.style.background = dim;
+    bPlus.addEventListener('click', function(e){
+      e.stopPropagation();
+      var ns = advancePeg(idx, 1);
+      var el = document.getElementById('vp-score-'+idx);
+      if (el) el.textContent = ns;
+      if (ns >= MAX_SCORE) setTimeout(function(){ doWin(idx); }, 400);
+    });
+
+    /* -1 button */
+    var bMinus = document.createElement('button'); bMinus.className = 'vp-btn';
+    bMinus.textContent = '−1'; bMinus.style.borderColor = 'rgba(255,100,100,.4)'; bMinus.style.color = 'rgba(255,130,130,.85)';
+    bMinus.addEventListener('click', function(e){
+      e.stopPropagation();
+      var ns = advancePeg(idx, -1);
+      var el = document.getElementById('vp-score-'+idx);
+      if (el) el.textContent = ns;
+    });
+
+    btns.appendChild(bPlus); btns.appendChild(bMinus);
+    row.appendChild(info); row.appendChild(btns);
+    cont.appendChild(row);
+  });
 }
 
 /* ══════════════════════════════════════════════
@@ -768,9 +946,9 @@ var playerDeltas = [0,0,0,0];
 function onStartRound() {
   document.getElementById('start-round-btn').style.display='none';
   if (G.mode === 'voice') {
-    G.scoringPlayer=0; G.pendingDelta=0;
+    buildVoicePlayerRows();
     document.getElementById('voice-input-panel').style.display='flex';
-    refreshVoiceUI(); setVoiceStatus('Tap mic to listen');
+    setVoiceStatus('Tap mic to score');
   } else {
     playerDeltas=[0,0,0,0];
     buildAllPlayerRows();
@@ -863,24 +1041,15 @@ function onNextRound() {
 }
 
 /* ══════════════════════════════════════════════
-   VOICE NEXT PLAYER
+   VOICE NEXT ROUND — ends voice scoring for this round
+   Unity: VoiceScoringManager.EndRound()
    ══════════════════════════════════════════════ */
-function onVoiceNextPlayer() {
-  if (micActive && micRecognition){ micRecognition.stop(); setMicOff(); }
-  var p=G.scoringPlayer;
-  if (G.pendingDelta!==0) {
-    var ns=advancePeg(p,G.pendingDelta);
-    if (ns>=MAX_SCORE){ setTimeout(function(){doWin(p);},450); return; }
-  }
-  G.pendingDelta=0;
-  if (p<G.numPlayers-1){
-    G.scoringPlayer++; refreshVoiceUI(); setVoiceStatus('Tap mic to listen');
-  } else {
-    G.round++; G.scoringPhase='waiting'; G.scoringPlayer=0; G.pendingDelta=0;
-    document.getElementById('voice-input-panel').style.display='none';
-    document.getElementById('start-round-btn').style.display='';
-    updateStatus(); updateTrackerGrid();
-  }
+function onVoiceNextRound() {
+  if (micActive && micRecognition) { micRecognition.stop(); setMicOff(); }
+  G.round++; G.scoringPhase='waiting'; G.pendingDelta=0; G.scoringPlayer=0;
+  document.getElementById('voice-input-panel').style.display='none';
+  document.getElementById('start-round-btn').style.display='';
+  updateStatus(); updateTrackerGrid();
 }
 
 /* ══════════════════════════════════════════════
