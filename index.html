@@ -465,57 +465,72 @@ function refreshVoiceUI() {
 }
 
 /* ══════════════════════════════════════════════
-   BOARD GEOMETRY
-   boardCols() columns are drawn: 2 in 4p, else numPlayers.
+   BOARD GEOMETRY — separate snaking column per player/team
+   Unity: BoardLayout.cs — Vector2[numCols][122] holePositions
    ══════════════════════════════════════════════ */
 var B = {};
 
 function buildGeometry(svgW, svgH, cols) {
-  var padX=Math.max(6,svgW*0.03), padY=Math.max(6,svgH*0.03);
-  var innerW=svgW-padX*2, innerH=svgH-padY*2;
-  var colGap=Math.max(3,svgW*0.012);
-  var colW=(innerW-(cols-1)*colGap)/cols;
-  var startZoneH=Math.max(14,innerH*0.065), winZoneH=Math.max(12,innerH*0.055);
-  var playH=innerH-startZoneH-winZoneH, rowH=playH/NUM_ROWS;
-  var holeSpacing=colW/(HOLES_PER_ROW+0.5);
-  var holeR=Math.max(4,Math.min(holeSpacing*0.38,rowH*0.3,10));
-  var pegR=Math.max(holeR*0.75,holeR-1);
-  B={svgW,svgH,padX,padY,innerW,innerH,cols,colW,colGap,rowH,holeSpacing,holeR,pegR,startZoneH,winZoneH,playH,holePos:[]};
-  for (var c=0;c<cols;c++) {
-    var colLeft=padX+c*(colW+colGap), colCX=colLeft+colW*0.5;
-    B.holePos[c]=[];
-    B.holePos[c][0]={x:colCX,y:padY+winZoneH+playH+startZoneH*0.55};
-    for (var h=1;h<=120;h++) {
-      var row=Math.floor((h-1)/HOLES_PER_ROW), posR=(h-1)%HOLES_PER_ROW, ltr=(row%2===0);
-      var rowCY=padY+winZoneH+playH-(row+0.5)*rowH;
-      var margin=(colW-HOLES_PER_ROW*holeSpacing)*0.5;
-      var xOff=margin+(posR+0.5)*holeSpacing;
-      B.holePos[c][h]={x:ltr?(colLeft+xOff):(colLeft+colW-xOff),y:rowCY};
+  var padX = Math.max(6, svgW * 0.03);
+  var padY = Math.max(6, svgH * 0.03);
+  var innerW = svgW - padX * 2;
+  var innerH = svgH - padY * 2;
+  var colGap = Math.max(3, svgW * 0.012);
+  var colW   = (innerW - (cols - 1) * colGap) / cols;
+  var startZoneH = Math.max(14, innerH * 0.065);
+  var winZoneH   = Math.max(12, innerH * 0.055);
+  var playH      = innerH - startZoneH - winZoneH;
+  var rowH       = playH / NUM_ROWS;
+  var holeSpacing = colW / (HOLES_PER_ROW + 0.5);
+  var holeR = Math.max(4, Math.min(holeSpacing * 0.38, rowH * 0.3, 10));
+  var pegR  = Math.max(holeR * 0.75, holeR - 1);
+
+  B = { svgW, svgH, padX, padY, innerW, innerH,
+        cols, colW, colGap, rowH, holeSpacing,
+        holeR, pegR, startZoneH, winZoneH, playH,
+        holePos: [] };
+
+  for (var c = 0; c < cols; c++) {
+    var colLeft = padX + c * (colW + colGap);
+    var colCX   = colLeft + colW * 0.5;
+    B.holePos[c] = [];
+    B.holePos[c][0] = { x: colCX, y: padY + winZoneH + playH + startZoneH * 0.55 };
+    for (var h = 1; h <= 120; h++) {
+      var row  = Math.floor((h - 1) / HOLES_PER_ROW);
+      var posR = (h - 1) % HOLES_PER_ROW;
+      var ltr  = (row % 2 === 0);
+      var rowCY = padY + winZoneH + playH - (row + 0.5) * rowH;
+      var margin = (colW - HOLES_PER_ROW * holeSpacing) * 0.5;
+      var xOff   = margin + (posR + 0.5) * holeSpacing;
+      B.holePos[c][h] = { x: ltr ? (colLeft + xOff) : (colLeft + colW - xOff), y: rowCY };
     }
-    B.holePos[c][MAX_SCORE]={x:colCX,y:padY+winZoneH*0.45};
+    B.holePos[c][MAX_SCORE] = { x: colCX, y: padY + winZoneH * 0.45 };
   }
 }
 
 /* ══════════════════════════════════════════════
    BUILD BOARD SVG
    cols = boardCols() — 2 in 4p, else numPlayers.
-   Column labels: in 4p show "A" / "B" team label + both player initials.
+   Height capped at 42% viewport so scoring UI always visible.
+   Unity: BoardManager.DrawBoard()
    ══════════════════════════════════════════════ */
 function buildBoardSVG() {
-  var cont=document.getElementById('board-svg-container');
-  var cols=boardCols(), cW=cont.clientWidth||360, land=window.innerWidth>window.innerHeight;
-  var svgW,svgH;
-  if (land) { svgW=cW; svgH=Math.max(100,Math.round(Math.min(window.innerHeight*0.5,cW*0.28))); }
-  else {
-    svgW=cW;
-    var rowsTotal=NUM_ROWS+1.8, colsEff=HOLES_PER_ROW/cols;
-    svgH=Math.round(svgW*(rowsTotal/colsEff));
-    svgH=Math.min(svgH,Math.round(window.innerHeight*0.78));
-    svgH=Math.max(svgH,300);
+  var cont = document.getElementById('board-svg-container');
+  var cols = boardCols();
+  var cW   = cont.clientWidth || 360;
+  var land = window.innerWidth > window.innerHeight;
+  var svgW = cW;
+  var svgH;
+  if (land) {
+    svgH = Math.max(90, Math.round(window.innerHeight * 0.32));
+  } else {
+    svgH = Math.round(window.innerHeight * 0.42);
+    svgH = Math.max(190, svgH);
   }
-  buildGeometry(svgW,svgH,cols);
 
-  var s=[];
+  buildGeometry(svgW, svgH, cols);
+
+  var s = [];
   s.push('<svg viewBox="0 0 '+svgW+' '+svgH+'" xmlns="http://www.w3.org/2000/svg" overflow="visible">');
 
   /* DEFS */
@@ -527,7 +542,8 @@ function buildBoardSVG() {
   s.push('</linearGradient>');
   s.push('<radialGradient id="fg" cx="50%" cy="45%" r="60%">');
   s.push('<stop offset="0%" stop-color="#143f28"/><stop offset="100%" stop-color="#072010"/>');
-  s.push('</radialGradient></defs>');
+  s.push('</radialGradient>');
+  s.push('</defs>');
 
   /* Wood frame */
   s.push('<rect x="0" y="0" width="'+svgW+'" height="'+svgH+'" rx="16" fill="url(#wg)"/>');
@@ -535,98 +551,102 @@ function buildBoardSVG() {
   s.push('<rect x="5" y="5" width="'+(svgW-10)+'" height="'+(svgH-10)+'" rx="12" fill="none" stroke="#c9952a" stroke-width=".5" opacity=".3"/>');
 
   /* Felt */
-  var px=B.padX,py=B.padY;
+  var px = B.padX, py = B.padY;
   s.push('<rect x="'+f(px)+'" y="'+f(py)+'" width="'+f(svgW-px*2)+'" height="'+f(svgH-py*2)+'" rx="10" fill="url(#fg)"/>');
-  for (var ty=py+4;ty<svgH-py-4;ty+=9)
+  for (var ty = py+4; ty < svgH-py-4; ty += 9)
     s.push('<line x1="'+f(px+3)+'" y1="'+f(ty)+'" x2="'+f(svgW-px-3)+'" y2="'+f(ty)+'" stroke="rgba(255,255,255,.018)" stroke-width=".5"/>');
 
-  /* Column backgrounds + colour stripe + header label */
-  for (var c=0;c<cols;c++) {
-    var cl=px+c*(B.colW+B.colGap);
+  /* Column backgrounds + player colour stripe + header initial */
+  for (var c = 0; c < cols; c++) {
+    var cl = px + c * (B.colW + B.colGap);
     var colColor = is4p() ? teamColor(c) : PC[c];
     s.push('<rect x="'+f(cl)+'" y="'+f(py+2)+'" width="'+f(B.colW)+'" height="'+f(svgH-py*2-4)+'" rx="7" fill="'+(c%2===0?'rgba(0,0,0,.13)':'rgba(0,0,0,.06)')+'"/>');
     s.push('<rect x="'+f(cl)+'" y="'+f(py+10)+'" width="3.5" height="'+f(svgH-py*2-20)+'" rx="1.8" fill="'+colColor+'" opacity=".75"/>');
-    var colCX=cl+B.colW*0.5;
-    var initSz=Math.min(B.colW*0.24,12);
+    var colCX2 = cl + B.colW * 0.5;
+    var initSz = Math.min(B.colW * 0.24, 12);
     var headerText;
     if (is4p()) {
-      /* Show both partner initials e.g. "A · C" for Team A */
-      var p1idx=c===0?0:1, p2idx=c===0?2:3;
-      headerText = G.names[p1idx].charAt(0).toUpperCase()+' · '+G.names[p2idx].charAt(0).toUpperCase();
+      var p1idx = c === 0 ? 0 : 1, p2idx = c === 0 ? 2 : 3;
+      headerText = G.names[p1idx].charAt(0).toUpperCase() + ' · ' + G.names[p2idx].charAt(0).toUpperCase();
     } else {
       headerText = G.names[c].charAt(0).toUpperCase();
     }
-    s.push('<text x="'+f(colCX)+'" y="'+f(py-1)+'" text-anchor="middle" font-size="'+f(initSz)+'" fill="'+colColor+'" font-family="Georgia,serif" font-weight="bold" opacity=".85">'+headerText+'</text>');
+    s.push('<text x="'+f(colCX2)+'" y="'+f(py-1)+'" text-anchor="middle" font-size="'+f(initSz)+'" fill="'+colColor+'" font-family="Georgia,serif" font-weight="bold" opacity=".85">'+headerText+'</text>');
   }
 
   /* Column dividers */
-  for (var c=1;c<cols;c++) {
-    var dx=px+c*(B.colW+B.colGap)-B.colGap*0.5;
+  for (var c = 1; c < cols; c++) {
+    var dx = px + c * (B.colW + B.colGap) - B.colGap * 0.5;
     s.push('<line x1="'+f(dx)+'" y1="'+f(py+4)+'" x2="'+f(dx)+'" y2="'+f(svgH-py-4)+'" stroke="rgba(201,149,42,.18)" stroke-width=".8" stroke-dasharray="3,6"/>');
   }
 
-  /* Snake path glow — 25% opacity wide polyline per column */
-  for (var c=0;c<cols;c++) {
+  /* Snake path glow — single wide polyline at 25% opacity per column
+     Unity: LineRenderer per column, player color, opacity 0.25 */
+  for (var c = 0; c < cols; c++) {
     var colColor2 = is4p() ? teamColor(c) : PC[c];
-    var pts=[]; pts.push(B.holePos[c][0]);
-    for (var h=1;h<=120;h++) pts.push(B.holePos[c][h]);
+    var pts = [B.holePos[c][0]];
+    for (var h = 1; h <= 120; h++) pts.push(B.holePos[c][h]);
     pts.push(B.holePos[c][MAX_SCORE]);
-    var pStr=pts.map(function(hp){return f(hp.x)+','+f(hp.y);}).join(' ');
+    var pStr = pts.map(function(hp){ return f(hp.x)+','+f(hp.y); }).join(' ');
     s.push('<polyline points="'+pStr+'" fill="none" stroke="'+colColor2+'" stroke-width="'+f(B.holeR*2.8)+'" stroke-linejoin="round" stroke-linecap="round" opacity=".25"/>');
   }
 
-  /* Snake connector arcs */
-  for (var c=0;c<cols;c++) {
-    var cl2=px+c*(B.colW+B.colGap);
-    for (var row=0;row<NUM_ROWS-1;row++) {
-      var ltr=(row%2===0), hEnd=row*HOLES_PER_ROW+HOLES_PER_ROW, hNxt=hEnd+1;
-      if(hEnd>120||hNxt>120) continue;
-      var pe=B.holePos[c][hEnd],pn=B.holePos[c][hNxt]; if(!pe||!pn) continue;
-      var arcX=ltr?(cl2+B.colW+B.colGap*0.1):(cl2-B.colGap*0.1), midY=(pe.y+pn.y)*0.5;
+  /* Snake connector arcs between row ends */
+  for (var c = 0; c < cols; c++) {
+    var cl2 = px + c * (B.colW + B.colGap);
+    for (var row = 0; row < NUM_ROWS - 1; row++) {
+      var ltr2 = (row % 2 === 0);
+      var hEnd = row * HOLES_PER_ROW + HOLES_PER_ROW;
+      var hNxt = hEnd + 1;
+      if (hEnd > 120 || hNxt > 120) continue;
+      var pe = B.holePos[c][hEnd], pn = B.holePos[c][hNxt];
+      if (!pe || !pn) continue;
+      var arcX = ltr2 ? (cl2 + B.colW + B.colGap * 0.1) : (cl2 - B.colGap * 0.1);
+      var midY = (pe.y + pn.y) * 0.5;
       s.push('<path d="M '+f(pe.x)+' '+f(pe.y)+' Q '+f(arcX)+' '+f(midY)+' '+f(pn.x)+' '+f(pn.y)+'" fill="none" stroke="rgba(201,149,42,.2)" stroke-width="1"/>');
     }
   }
 
   /* Milestone labels */
-  for (var c=0;c<cols;c++) {
-    for (var h=10;h<=120;h+=10) {
-      var hp=B.holePos[c][h]; if(!hp) continue;
+  for (var c = 0; c < cols; c++) {
+    for (var h = 10; h <= 120; h += 10) {
+      var hp = B.holePos[c][h]; if (!hp) continue;
       s.push('<text x="'+f(hp.x)+'" y="'+f(hp.y-B.holeR-1)+'" text-anchor="middle" font-size="'+f(B.holeR*.95)+'" fill="rgba(201,149,42,.45)" font-family="Georgia,serif">'+h+'</text>');
     }
   }
 
   /* Start zones */
-  for (var c=0;c<cols;c++) {
-    var h0=B.holePos[c][0];
+  for (var c = 0; c < cols; c++) {
+    var h0 = B.holePos[c][0];
     s.push('<circle cx="'+f(h0.x)+'" cy="'+f(h0.y)+'" r="'+f(B.holeR+2.5)+'" fill="rgba(0,0,0,.35)" stroke="rgba(201,149,42,.55)" stroke-width="1"/>');
     s.push('<text x="'+f(h0.x)+'" y="'+f(h0.y+B.holeR*.38)+'" text-anchor="middle" font-size="'+f(B.holeR)+'" fill="rgba(201,149,42,.75)" font-family="Georgia,serif" font-weight="bold">S</text>');
   }
 
   /* Win zones */
-  for (var c=0;c<cols;c++) {
-    var hwp=B.holePos[c][MAX_SCORE];
-    s.push('<circle cx="'+f(hwp.x)+'" cy="'+f(hwp.y)+'" r="'+f(B.holeR+3)+'" fill="rgba(201,149,42,.12)" stroke="rgba(201,149,42,.75)" stroke-width="1.5"/>');
-    s.push('<text x="'+f(hwp.x)+'" y="'+f(hwp.y+B.holeR*.38)+'" text-anchor="middle" font-size="'+f(B.holeR*.95)+'" fill="rgba(201,149,42,.9)" font-family="Georgia,serif" font-weight="bold">W</text>');
+  for (var c = 0; c < cols; c++) {
+    var hw = B.holePos[c][MAX_SCORE];
+    s.push('<circle cx="'+f(hw.x)+'" cy="'+f(hw.y)+'" r="'+f(B.holeR+3)+'" fill="rgba(201,149,42,.12)" stroke="rgba(201,149,42,.75)" stroke-width="1.5"/>');
+    s.push('<text x="'+f(hw.x)+'" y="'+f(hw.y+B.holeR*.38)+'" text-anchor="middle" font-size="'+f(B.holeR*.95)+'" fill="rgba(201,149,42,.9)" font-family="Georgia,serif" font-weight="bold">W</text>');
   }
 
   /* Holes (1..120) */
-  for (var c=0;c<cols;c++) {
-    for (var h=1;h<=120;h++) {
-      var hp=B.holePos[c][h]; if(!hp) continue;
+  for (var c = 0; c < cols; c++) {
+    for (var h = 1; h <= 120; h++) {
+      var hp = B.holePos[c][h]; if (!hp) continue;
       s.push('<circle cx="'+f(hp.x)+'" cy="'+f(hp.y)+'" r="'+f(B.holeR)+'" fill="rgba(0,0,0,.62)"/>');
-      var op=(h%HOLES_PER_ROW===0)?.25:.1;
+      var op = (h % HOLES_PER_ROW === 0) ? .25 : .1;
       s.push('<circle cx="'+f(hp.x)+'" cy="'+f(hp.y)+'" r="'+f(B.holeR-.7)+'" fill="none" stroke="rgba(255,255,255,'+op+')" stroke-width=".7"/>');
     }
   }
 
-  /* Pegs + score labels (one front+back peg pair per board column)
-     In 4p: col 0 = Team A shared peg, col 1 = Team B shared peg.
-     Unity: 2 Peg prefabs per column, sync'd to pegPos[col] */
-  for (var c=0;c<cols;c++) {
+  /* Pegs + score labels */
+  for (var c = 0; c < cols; c++) {
     var colColor3 = is4p() ? teamColor(c) : PC[c];
-    for (var peg=PEGS_PER_PLAYER-1;peg>=0;peg--) {
-      var h0c=B.holePos[c][0], isFront=(peg===0);
-      var offX=isFront?B.pegR*.4:-B.pegR*.4, offY=isFront?-B.pegR*.15:B.pegR*.15;
+    for (var peg = PEGS_PER_PLAYER - 1; peg >= 0; peg--) {
+      var h0c = B.holePos[c][0];
+      var isFront = (peg === 0);
+      var offX = isFront ? B.pegR * .4 : -B.pegR * .4;
+      var offY = isFront ? -B.pegR * .15 : B.pegR * .15;
       s.push('<circle id="ps_'+c+'_'+peg+'" cx="'+f(h0c.x+offX+1)+'" cy="'+f(h0c.y+offY+1.5)+'" r="'+f(B.pegR)+'" fill="rgba(0,0,0,.55)" class="peg-shadow"/>');
       if (isFront) {
         s.push('<circle id="p_'+c+'_'+peg+'" cx="'+f(h0c.x+offX)+'" cy="'+f(h0c.y+offY)+'" r="'+f(B.pegR)+'" fill="'+colColor3+'" class="peg-el"/>');
@@ -635,10 +655,10 @@ function buildBoardSVG() {
         s.push('<circle id="p_'+c+'_'+peg+'" cx="'+f(h0c.x+offX)+'" cy="'+f(h0c.y+offY)+'" r="'+f(B.pegR)+'" fill="rgba(0,0,0,.45)" stroke="'+colColor3+'" stroke-width="1.8" class="peg-el"/>');
       }
     }
-    /* Score label above front peg */
-    var h0s=B.holePos[c][0];
-    var lblSz=Math.max(14,Math.min(B.pegR*2.6,27));
-    var offXf=B.pegR*.4, offYf=-B.pegR*.15;
+    /* Score label — 50% larger for table visibility */
+    var h0s = B.holePos[c][0];
+    var lblSz = Math.max(14, Math.min(B.pegR * 2.6, 27));
+    var offXf = B.pegR * .4, offYf = -B.pegR * .15;
     var initScore = is4p() ? teamScore(c) : G.scores[c];
     s.push('<text id="lbl_'+c+'" x="'+f(h0s.x+offXf)+'" y="'+f(h0s.y+offYf-B.pegR-5)+'"');
     s.push(' text-anchor="middle" font-size="'+f(lblSz)+'" font-weight="bold"');
@@ -648,30 +668,30 @@ function buildBoardSVG() {
   }
 
   s.push('</svg>');
-  cont.innerHTML=s.join('');
+  cont.innerHTML = s.join('');
 }
 
 /* ══════════════════════════════════════════════
    UPDATE PEGS
-   Iterates over board columns (not player indices in 4p).
-   G.pegPos[col] = [frontHole, backHole] for that column.
+   Unity: foreach col → PegController.MoveTo(holePos[col][holeIdx])
    ══════════════════════════════════════════════ */
 function updatePegs() {
-  var cols=boardCols();
-  for (var c=0;c<cols;c++) {
-    for (var peg=0;peg<PEGS_PER_PLAYER;peg++) {
-      var hIdx=Math.min(G.pegPos[c][peg],MAX_SCORE);
-      var hp=B.holePos[c][hIdx]; if(!hp) continue;
-      var isFront=(peg===0);
-      var offX=isFront?B.pegR*.4:-B.pegR*.4, offY=isFront?-B.pegR*.15:B.pegR*.15;
+  var cols = boardCols();
+  for (var c = 0; c < cols; c++) {
+    for (var peg = 0; peg < PEGS_PER_PLAYER; peg++) {
+      var hIdx = Math.min(G.pegPos[c][peg], MAX_SCORE);
+      var hp   = B.holePos[c][hIdx]; if (!hp) continue;
+      var isFront = (peg === 0);
+      var offX = isFront ?  B.pegR * .4 : -B.pegR * .4;
+      var offY = isFront ? -B.pegR * .15 :  B.pegR * .15;
       setXY('p_'+c+'_'+peg,  hp.x+offX,   hp.y+offY);
       setXY('ps_'+c+'_'+peg, hp.x+offX+1, hp.y+offY+1.5);
       if (isFront) {
         setXY('psh_'+c, hp.x+offX-B.pegR*.22, hp.y+offY-B.pegR*.28);
-        var lbl=document.getElementById('lbl_'+c);
+        var lbl = document.getElementById('lbl_'+c);
         if (lbl) {
-          lbl.setAttribute('x',f(hp.x+offX));
-          lbl.setAttribute('y',f(hp.y+offY-B.pegR-5));
+          lbl.setAttribute('x', f(hp.x + offX));
+          lbl.setAttribute('y', f(hp.y + offY - B.pegR - 5));
           lbl.textContent = is4p() ? teamScore(c) : G.scores[c];
         }
       }
