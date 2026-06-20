@@ -425,20 +425,22 @@ function SwitchbackBoard({ t, players, w = 300, h = 440 }) {
       <path d={d} fill="none" stroke="#fff" strokeOpacity={t.dark ? 0.5 : 0.62}
         strokeWidth={4.6 * k} strokeDasharray={`${0.6 * k} ${13 * k}`} strokeLinecap="round" />
 
-      {/* camps / milestones, incl. the skunk line at 90 */}
+      {/* camps / milestones, incl. skunk (90) and double-skunk (60) lines */}
       {camps.map((s) => {
         const p = sbPos(s, cfg);
-        const skunk = s === 90;
+        const skunk = s === 90;       // reach 91 to avoid a skunk
+        const dbl = s === 60;         // reach 61 to avoid a double skunk
+        const mark = skunk || dbl;
         return (
           <g key={s}>
             <circle cx={p.x} cy={p.y} r={13 * k} fill={t.surface}
-              stroke={skunk ? t.cols[0] : t.frameEdge} strokeWidth={skunk ? 2 * k : 1.4 * k}
-              strokeDasharray={skunk ? `${3 * k} ${3 * k}` : 'none'} />
+              stroke={mark ? t.cols[0] : t.frameEdge} strokeWidth={mark ? 2 * k : 1.4 * k}
+              strokeDasharray={mark ? `${3 * k} ${3 * k}` : 'none'} />
             <text x={p.x} y={p.y + 4 * k} textAnchor="middle" fontFamily="'Hanken Grotesk',sans-serif"
-              fontWeight="700" fontSize={10 * k} fill={skunk ? t.cols[0] : t.ink2}>{s}</text>
-            {skunk && <text x={p.x} y={p.y - 19 * k} textAnchor="middle"
+              fontWeight="700" fontSize={10 * k} fill={mark ? t.cols[0] : t.ink2}>{s}</text>
+            {mark && <text x={p.x} y={p.y - 19 * k} textAnchor="middle"
               fontFamily="'Hanken Grotesk',sans-serif" fontWeight="700" fontSize={7 * k}
-              letterSpacing={1.5 * k} fill={t.cols[0]}>SKUNK</text>}
+              letterSpacing={1.5 * k} fill={t.cols[0]}>{skunk ? 'SKUNK' : '2\u00d7 SKUNK'}</text>}
           </g>
         );
       })}
@@ -483,6 +485,23 @@ Object.assign(window, { SwitchbackBoard });
 const SB_SAFE_BOTTOM = 'calc(env(safe-area-inset-bottom, 0px) + 22px)';
 const SB_FONT = "'Hanken Grotesk', sans-serif";
 const SB_SERIF = "'Cormorant Garamond', serif";
+
+/* HapticTap — wraps a control so a finger-tap lands on a real, invisible iOS
+   <input switch> (the only thing that fires the Taptic Engine on iOS 26.5+),
+   and also vibrates on Android. Visual is pointer-events:none; the switch carries
+   the tap. UNITY: replace with Handheld.Vibrate / a Taptic plugin call. */
+function HapticTap({ onTap, style, children, ariaLabel }) {
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', WebkitTapHighlightColor: 'transparent', ...style }}>
+      <span style={{ pointerEvents: 'none', display: 'flex', width: '100%' }}>{children}</span>
+      <input type="checkbox" tabIndex={-1} aria-label={ariaLabel || 'button'}
+        ref={(el) => { if (el) el.setAttribute('switch', ''); }}
+        onClick={() => { try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {} if (onTap) onTap(); }}
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', margin: 0,
+          opacity: 0, cursor: 'pointer', zIndex: 2 }} />
+    </span>
+  );
+}
 
 /* ---------- atoms ---------- */
 function Dot({ c, size = 9, glow }) {
@@ -593,13 +612,13 @@ function PegPad({ t, player, color, onPeg, onClose }) {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 11 }}>
           {quick.map((n) => (
-            <button key={n} onClick={() => onPeg(n)} style={{ height: 60, borderRadius: 15,
-              border: `1px solid ${t.line}`, background: t.surfaceAlt, cursor: 'pointer',
-              fontFamily: SB_SERIF, fontWeight: 700, fontSize: 27, color: t.ink,
-              WebkitTapHighlightColor: 'transparent', transition: 'transform .08s' }}
-              onPointerDown={(e) => (e.currentTarget.style.transform = 'scale(0.94)')}
-              onPointerUp={(e) => (e.currentTarget.style.transform = '')}
-              onPointerLeave={(e) => (e.currentTarget.style.transform = '')}>+{n}</button>
+            <HapticTap key={n} onTap={() => onPeg(n)} ariaLabel={'plus ' + n}
+              style={{ display: 'flex', width: '100%' }}>
+              <span style={{ height: 60, width: '100%', borderRadius: 15,
+                border: `1px solid ${t.line}`, background: t.surfaceAlt,
+                fontFamily: SB_SERIF, fontWeight: 700, fontSize: 27, color: t.ink,
+                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+{n}</span>
+            </HapticTap>
           ))}
         </div>
         <button onClick={onClose} style={ghostBtn(t, { height: 50, marginTop: 18 })}>Cancel</button>
@@ -835,6 +854,11 @@ function ScoreRow({ t, g, pl, i, onAdjust, onOpenPad }) {
 function SBPlay({ t, g, onAdjust, onOpenPad, onNextDeal, onUndo, onMenu }) {
   const crib = g.players[g.dealer];
   const isTour = g.format === 'tournament';
+  /* His Heels: companion can't see the physical cut card, so this is a per-round
+     prompt. If the cut was a Jack, the dealer pegs 2. Tap to claim, X to dismiss. */
+  const [hhDoneRound, setHhDoneRound] = React.useState(0);
+  const showHeels = hhDoneRound !== g.round;
+  const claimHeels = () => { onAdjust(g.dealer, 2); setHhDoneRound(g.round); };
   return (
     <PhoneScreen bg={t.screen} style={{ overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '2px 18px 8px' }}>
@@ -859,6 +883,25 @@ function SBPlay({ t, g, onAdjust, onOpenPad, onNextDeal, onUndo, onMenu }) {
             <rect y="2" width="16" height="1.8" rx="0.9" /><rect y="7.1" width="16" height="1.8" rx="0.9" /><rect y="12.2" width="16" height="1.8" rx="0.9" /></g></svg>
         </IconBtn>
       </div>
+
+      {/* His Heels — per-round prompt: Jack cut → dealer pegs 2 */}
+      {showHeels && (
+        <div style={{ margin: '0 16px 8px', padding: '6px 6px 6px 13px', borderRadius: 12,
+          background: t.surface, border: `1px solid ${t.hairline}`, display: 'flex',
+          alignItems: 'center', gap: 6 }}>
+          <HapticTap onTap={claimHeels} ariaLabel="Claim His Heels for the dealer"
+            style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontFamily: SB_FONT, fontWeight: 700, fontSize: 11, letterSpacing: '0.3px',
+              color: t.accent, lineHeight: 1.25, textAlign: 'left' }}>
+              {'\u2666'} Jack cut? {crib.name} pegs His Heels &middot; +2
+            </span>
+          </HapticTap>
+          <button onClick={() => setHhDoneRound(g.round)} aria-label="No Jack cut"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.ink2,
+              fontSize: 14, lineHeight: 1, padding: '4px 7px', flexShrink: 0,
+              WebkitTapHighlightColor: 'transparent' }}>{'\u2715'}</button>
+        </div>
+      )}
 
       {/* tournament series strip */}
       {isTour && (
@@ -1167,6 +1210,19 @@ function SwitchbackApp() {
     const { history, ...persist } = g;
     try { localStorage.setItem(SB_STORE, JSON.stringify(persist)); } catch (e) {}
   }, [g]);
+
+  /* Android haptic: a short tick on any <button> tap. No-op on iOS (no vibrate API);
+     iOS haptic is handled per-control by HapticTap's native switch overlay. */
+  useEffect(() => {
+    function tick(e) {
+      const el = e.target;
+      if (el && el.closest && el.closest('button')) {
+        try { if (navigator.vibrate) navigator.vibrate(8); } catch (_) {}
+      }
+    }
+    document.addEventListener('pointerdown', tick, true);
+    return () => document.removeEventListener('pointerdown', tick, true);
+  }, []);
 
   function snapshot(s) {
     return { round: s.round, dealer: s.dealer, players: s.players.map((p) => ({ ...p })) };
